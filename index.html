@@ -1,0 +1,291 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Hora extra</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+:root{--bg:#f2f3f5;--sf:#fff;--ink:#1a212b;--mu:#5d6773;--ln:#d8dce2;--ac:#f2b705;--ok:#15803d;--okbg:#dcf3e4;--no:#b42318;--nobg:#fbe3e0;--pe:#7a5500;--pebg:#fdf0c9;
+box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#11151b;--sf:#1a2029;--ink:#e9edf2;--mu:#9aa5b1;--ln:#2d3641;--ok:#5bd68a;--okbg:#17372a;--no:#ff8f84;--nobg:#401e1a;--pe:#f2c94c;--pebg:#3a2f0e}}
+:root[data-theme="dark"]{--bg:#11151b;--sf:#1a2029;--ink:#e9edf2;--mu:#9aa5b1;--ln:#2d3641;--ok:#5bd68a;--okbg:#17372a;--no:#ff8f84;--nobg:#401e1a;--pe:#f2c94c;--pebg:#3a2f0e}
+*,*::before,*::after{box-sizing:inherit}
+html{scroll-padding-top:env(safe-area-inset-top,0px)}
+body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.45 Barlow,system-ui,-apple-system,"Segoe UI",sans-serif}
+main{max-width:860px;margin:0 auto;padding:16px}
+h1{font-size:30px;margin:6px 0 14px;letter-spacing:-.01em}
+h2{font-size:19px;margin:0 0 10px}
+.mu{color:var(--mu)}
+.tabs{display:flex;flex-wrap:wrap;gap:4px;margin-bottom:16px;border-bottom:2px solid var(--ln)}
+.tab{background:none;border:0;border-bottom:4px solid transparent;margin-bottom:-2px;padding:10px 14px;font:600 16px Barlow,system-ui,sans-serif;color:var(--mu);cursor:pointer}
+.tab[aria-selected=true]{color:var(--ink);border-bottom-color:var(--ac)}
+.card{background:var(--sf);border:1px solid var(--ln);border-radius:8px;padding:14px;margin-bottom:14px}
+select,input{font:inherit;color:var(--ink);background:var(--bg);border:1px solid var(--ln);border-radius:6px;padding:8px 10px;min-height:42px;max-width:100%}
+select{width:100%;margin-top:6px}
+button{font:600 15px Barlow,system-ui,sans-serif;cursor:pointer;border-radius:6px;min-height:42px;padding:8px 14px}
+.btn{background:var(--ac);color:#1a212b;border:0}
+.btn2{background:var(--sf);color:var(--ink);border:1px solid var(--ln)}
+.btn:disabled{opacity:.5;cursor:default}
+:focus-visible{outline:3px solid var(--ac);outline-offset:2px}
+.row{display:flex;flex-wrap:wrap;align-items:center;gap:8px 12px;padding:12px 0;border-top:1px solid var(--ln)}
+.nm{flex:1 1 180px;font-weight:600}
+.seg{display:flex;border:1px solid var(--ln);border-radius:6px;overflow:hidden}
+.seg button{border:0;border-radius:0;background:var(--bg);color:var(--mu)}
+.seg .y.on{background:var(--ok);color:#fff}
+.seg .n.on{background:var(--mu);color:var(--sf)}
+.when{display:flex;gap:6px;align-items:center;flex-wrap:wrap}
+.when[hidden]{display:none}
+.bulk{padding:10px;background:var(--bg);border-radius:6px;margin-bottom:6px}
+.badge{font-size:14px;font-weight:600;padding:3px 10px;border-radius:99px}
+.badge.pendente{background:var(--pebg);color:var(--pe)}
+.badge.aprovado{background:var(--okbg);color:var(--ok)}
+.badge.reprovado{background:var(--nobg);color:var(--no)}
+.head{display:flex;flex-wrap:wrap;justify-content:space-between;align-items:center;gap:8px;margin-bottom:6px}
+.acts{display:flex;gap:6px}
+.acts .ok.on{background:var(--ok);color:#fff;border-color:var(--ok)}
+.acts .no.on{background:var(--no);color:#fff;border-color:var(--no)}
+.acts button{padding:6px 12px}
+.when2{color:var(--mu);font-variant-numeric:tabular-nums}
+#toast{position:fixed;left:50%;bottom:calc(20px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);background:var(--ink);color:var(--bg);padding:10px 16px;border-radius:8px;font-weight:500;max-width:90%;display:none;z-index:9}
+.maps{display:flex;flex-wrap:wrap;gap:12px;margin:10px 0}
+.maps label{flex:1 1 200px}
+.pv{width:100%;border-collapse:collapse;margin:8px 0;font-size:14px}
+.pv th,.pv td{text-align:left;padding:4px 8px;border-top:1px solid var(--ln)}
+</style>
+</head>
+<body>
+<main>
+<h1>Hora extra</h1>
+<div class="tabs" id="tabs" role="tablist"></div>
+<div id="view"><div class="card mu">Carregando…</div></div>
+</main>
+<div id="toast" role="status"></div>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script>
+const $=s=>document.querySelector(s);
+const esc=s=>String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const slug=s=>String(s).normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/^-+|-+$/g,'')||'x';
+const fmt=d=>d?d.split('-').reverse().join('/'):'—';
+const sig=i=>[i.dia,i.ini,i.fim].concat(i.atividade?[i.atividade]:[]).join('|');
+let db=null,dl=null,isCoord=false,roster=[],pedidos={},decisoes={},drafts={},dirty={},sel='',tab='enc',filtro='pend',pending=null,fillDown=true,quando={},todos={},fdia='',apagar=null,senha,liberado=false,modoSenha='',mapN=0,mapE=1;
+try{sel=localStorage.getItem('he_enc')||''}catch(e){}
+let tt;function toast(m){const t=$('#toast');t.textContent=m;t.style.display='block';clearTimeout(tt);tt=setTimeout(()=>t.style.display='none',3500)}
+const erro=e=>e&&e.code==='invalid_argument'?'Sem permissão para salvar. Peça ao coordenador acesso de Colaborador a este link.':'Não foi possível salvar. Tente de novo.';
+const stOf=(tk,k,it)=>{const x=((decisoes[tk]||{}).itens||{})[k];return x&&x.sig===sig(it)?x.status:'pendente'};
+const badge=s=>`<span class="badge ${s}">${{pendente:'Aguardando',aprovado:'Aprovado',reprovado:'Reprovado'}[s]}</span>`;
+const diaDe=p=>p.dia||((Object.values(p.itens||{}).find(i=>i.vai)||{}).dia)||'';
+const hoje=()=>{const d=new Date();return[d.getFullYear(),String(d.getMonth()+1).padStart(2,'0'),String(d.getDate()).padStart(2,'0')].join('-')};
+function teams(){const m=new Map();roster.forEach(p=>{const k=slug(p.enc);if(!m.has(k))m.set(k,{k,nome:p.enc,gente:[]});m.get(k).gente.push(p.nome)});return[...m.values()].sort((a,b)=>a.nome.localeCompare(b.nome,'pt'))}
+function getQ(k){if(!dirty[k]){const p=pedidos[k],f=p&&Object.values(p.itens||{}).find(i=>i.vai);quando[k]=f?{dia:f.dia,ini:f.ini,fim:f.fim,atividade:f.atividade||''}:(quando[k]||{})}return quando[k]||(quando[k]={})}
+function getDraft(k){if(!dirty[k]){const p=pedidos[k];drafts[k]=p?JSON.parse(JSON.stringify(p.itens||{})):{}}return drafts[k]}
+
+async function hashSenha(s,salt){const k=await crypto.subtle.importKey('raw',new TextEncoder().encode(s),'PBKDF2',false,['deriveBits']);const b=await crypto.subtle.deriveBits({name:'PBKDF2',salt:new TextEncoder().encode(salt),iterations:150000,hash:'SHA-256'},k,256);return[...new Uint8Array(b)].map(x=>x.toString(16).padStart(2,'0')).join('')}
+async function senhaOk(){
+  const p=$('#pw').value,def=!senha||modoSenha==='trocar';
+  try{
+    if(def){
+      if(p.length<6)return toast('Use pelo menos 6 caracteres.');
+      if(p!==$('#pw2').value)return toast('As senhas não conferem.');
+      const salt=[...crypto.getRandomValues(new Uint8Array(8))].join('-'),h=await hashSenha(p,salt);
+      await db.doc('config/senha').set({salt,hash:h});
+      try{sessionStorage.setItem('he_ok',h)}catch(e){}
+      modoSenha='';liberado=true;render();toast('Senha salva');
+    }else{
+      const h=await hashSenha(p,senha.salt);
+      if(h!==senha.hash){$('#pw').value='';return toast('Senha incorreta.')}
+      try{sessionStorage.setItem('he_ok',h)}catch(e){}
+      liberado=true;render();
+    }
+  }catch(e){toast(erro(e))}
+}
+function renderLock(){
+  const el=$('#view');
+  if(senha===undefined){el.innerHTML='<div class="card mu">Carregando…</div>';return}
+  const def=!senha||modoSenha==='trocar';
+  el.innerHTML=`<div class="card" style="max-width:420px"><h2>${def?(senha?'Trocar a senha da coordenação':'Defina a senha da coordenação'):'Área da coordenação'}</h2><p class="mu">${def?'Escolha uma senha com pelo menos 6 caracteres.':'Digite a senha para continuar.'}</p><input type="password" id="pw" autocomplete="off" aria-label="Senha" placeholder="Senha" style="width:100%;margin-bottom:8px">${def?'<input type="password" id="pw2" autocomplete="off" aria-label="Repita a senha" placeholder="Repita a senha" style="width:100%;margin-bottom:8px">':''}<div class="acts"><button class="btn" id="pwgo">${def?'Salvar senha':'Entrar'}</button>${modoSenha?'<button class="btn2" id="pwx">Cancelar</button>':''}</div></div>`;
+}
+function renderTabs(){
+  const t=[['enc','Encarregado']];if(isCoord)t.push(['imp','Importar'],['coord','Coordenação']);
+  $('#tabs').innerHTML=t.map(([k,n])=>`<button class="tab" role="tab" data-tab="${k}" aria-selected="${tab===k}">${n}</button>`).join('')+(isCoord&&liberado&&!modoSenha?'<span class="acts" style="margin-left:auto;align-self:center"><button class="btn2" data-sx="trocar">Trocar senha</button><button class="btn2" data-sx="lock">Bloquear</button></span>':'');
+}
+function render(){renderTabs();(tab==='coord'||tab==='imp')&&isCoord&&(!liberado||modoSenha)?renderLock():tab==='coord'&&isCoord?renderCoord():tab==='imp'&&isCoord?renderImp():renderEnc()}
+
+function renderEnc(){
+  const T=teams(),el=$('#view');
+  if(!T.length){el.innerHTML=`<div class="card"><h2>Nenhum efetivo importado</h2><p class="mu">${isCoord?'Abra a aba Coordenação e importe a planilha do efetivo.':'Peça ao coordenador para importar a planilha do efetivo.'}</p></div>`;return}
+  const team=T.find(t=>t.k===sel);
+  let h=`<div class="card"><label for="enc"><b>Quem é você?</b></label><select id="enc"><option value="">Selecione seu nome</option>${T.map(t=>`<option value="${t.k}"${t.k===sel?' selected':''}>${esc(t.nome)}</option>`).join('')}</select></div>`;
+  if(team){
+    const d=getDraft(team.k),q=getQ(team.k),sent=pedidos[team.k];
+    h+=`<div class="card" id="enc-form"><h2>Equipe de ${esc(team.nome)} <span class="mu">(${team.gente.length})</span></h2>
+    <div class="bulk when"><b>Dia e horário da hora extra:</b><input type="date" data-f="dia" value="${esc(q.dia||'')}" aria-label="Dia"><input type="time" data-f="ini" value="${esc(q.ini||'')}" aria-label="Início"><span>até</span><input type="time" data-f="fim" value="${esc(q.fim||'')}" aria-label="Fim"><label style="flex:1 1 100%"><b>Atividade que será feita:</b><input type="text" data-f="atividade" value="${esc(q.atividade||'')}" maxlength="200" style="width:100%;margin-top:6px"></label></div>`;
+    team.gente.forEach(n=>{
+      const k=slug(n),i=d[k]||{},s=sent&&sent.itens&&sent.itens[k];
+      h+=`<div class="row" data-k="${k}"><div class="nm">${esc(n)}</div>
+      <div class="seg"><button data-v="1" class="y${i.vai===true?' on':''}">Vai</button><button data-v="0" class="n${i.vai===false?' on':''}">Não vai</button></div>
+      
+      ${s&&s.vai?badge(stOf(sent._id,k,s)):''}</div>`;
+    });
+    h+=`<div class="head" style="margin-top:12px"><span class="mu">${sent?'Última lista (para '+fmt(diaDe(sent))+') enviada em '+new Date(sent.enviadoEm).toLocaleString('pt-BR',{dateStyle:'short',timeStyle:'short'}):'Ainda não enviada'}</span><button class="btn" id="send">Enviar para aprovação</button></div></div>`;
+  }
+  el.innerHTML=h;
+}
+
+async function enviar(team){
+  const d=getDraft(team.k),q=getQ(team.k),itens={};
+  for(const n of team.gente){
+    const k=slug(n),i=d[k];
+    if(!i||typeof i.vai!=='boolean')return toast('Marque Vai ou Não vai para '+n);
+    if(i.vai&&(!q.dia||!q.ini||!q.fim))return toast('Preencha o dia e o horário da hora extra');
+    if(i.vai&&!(q.atividade||'').trim())return toast('Informe a atividade que será feita');
+    itens[k]=i.vai?{nome:n,vai:true,dia:q.dia,ini:q.ini,fim:q.fim,atividade:(q.atividade||'').trim()}:{nome:n,vai:false};
+  }
+  try{await db.doc('pedidos/'+team.k+'--'+(q.dia||'sem-data')).set({ek:team.k,encarregado:team.nome,dia:q.dia||'',itens,enviadoEm:Date.now()});dirty[team.k]=false;toast('Lista enviada para aprovação')}catch(e){toast(erro(e))}
+}
+
+function renderImp(){
+  const T=teams(),el=$('#view');
+  let h=`<div class="card"><h2>Efetivo</h2><p class="mu">${roster.length?roster.length+' pessoas em '+T.length+' equipes.':'Nenhum efetivo importado ainda.'} Envie a planilha (.xlsx de preferência): coluna A com o nome do colaborador e coluna F com o encarregado, e a primeira linha como cabeçalho. Importar de novo substitui o efetivo.</p><input type="file" id="file" accept=".xlsx,.xls,.csv" aria-label="Planilha do efetivo">`;
+  if(pending){
+    const hd=pending[0].map(String),opt=i=>hd.map((x,j)=>`<option value="${j}"${j===i?' selected':''}>${esc(x||'Coluna '+(j+1))}</option>`).join('');
+    const P=pares(),n=P.out.length;
+    h+=`<div class="maps"><label>Coluna do nome<select id="mn">${opt(mapN)}</select></label><label>Coluna do encarregado<select id="me">${opt(mapE)}</select></label></div><label style="display:block;margin:6px 0"><input type="checkbox" id="fill"${fillDown?' checked':''}> Se a célula do encarregado estiver vazia (ou mesclada), usar o encarregado da linha de cima</label><p><b>${n} pessoas</b> em <b>${new Set(P.out.map(x=>slug(x.enc))).size} equipes</b> prontas para importar.${P.filled?' '+P.filled+' linhas usaram o encarregado da linha de cima.':''}${P.sem?' '+P.sem+' linhas sem encarregado serão ignoradas.':''} ${roster.length?'Isso substitui o efetivo atual ('+roster.length+' pessoas).':''}</p><table class="pv"><tr><th>Colaborador</th><th>Encarregado</th></tr>${P.out.slice(0,6).map(x=>`<tr><td>${esc(x.nome)}</td><td>${esc(x.enc)}</td></tr>`).join('')}</table><div class="acts"><button class="btn" id="imp"${n&&mapN!==mapE?'':' disabled'}>Confirmar importação</button><button class="btn2" id="cancel">Cancelar</button></div>`;
+  }
+  h+='</div>';
+  el.innerHTML=h;}
+function renderCoord(){
+  const T=teams(),el=$('#view');let h='';
+  const L=Object.entries(todos).map(([id,p])=>({k:id,p,dia:diaDe(p),nome:p.encarregado||id})).filter(x=>!fdia||x.dia===fdia).sort((a,b)=>(b.dia||'').localeCompare(a.dia||'')||a.nome.localeCompare(b.nome,'pt'));
+  h+=`<div class="head"><h2 style="margin:0">Listas para aprovar</h2><div class="acts"><button class="btn2 ${filtro==='pend'?'on':''}" data-fil="pend" aria-pressed="${filtro==='pend'}">Pendentes</button><button class="btn2 ${filtro==='todas'?'on':''}" data-fil="todas" aria-pressed="${filtro==='todas'}">Todas</button><button class="btn2" id="csv">Baixar aprovados</button></div></div>`;
+  
+  const dias=[...new Set(Object.values(todos).map(diaDe).filter(Boolean))].sort().reverse();
+  h+=`<div class="head"><label class="mu">Data <select id="fdia" style="width:auto;margin-left:6px"><option value="">Todas as datas</option>${dias.map(d=>`<option value="${esc(d)}"${d===fdia?' selected':''}>${fmt(d)}</option>`).join('')}</select></label>${Object.keys(todos).length?`<button class="btn2" id="apg">Apagar ${fdia?'listas desta data':'todas as listas'}</button>`:''}</div>`;
+  if(apagar)h+=`<div class="card"><b>Apagar ${L.length} lista(s) ${fdia?'de '+fmt(fdia):'(todas as datas)'}?</b> Isso também remove as aprovações e não pode ser desfeito. Baixe o CSV antes, se precisar.<div class="acts" style="margin-top:8px"><button class="btn" id="apgok">Sim, apagar</button><button class="btn2" id="apgx">Cancelar</button></div></div>`;
+  let shown=0;
+  L.forEach(t=>{
+    const p=t.p,all=Object.entries(p.itens||{}).filter(([,i])=>i.vai).sort((a,b)=>sig(a[1]).localeCompare(sig(b[1]))||a[1].nome.localeCompare(b[1].nome,'pt'));
+    const nao=Object.values(p.itens||{}).filter(i=>!i.vai).map(i=>i.nome);
+    const st=all.map(([k,i])=>[k,i,stOf(t.k,k,i)]),pend=st.filter(x=>x[2]==='pendente');
+    const rows=filtro==='pend'?pend:st;
+    if(filtro==='pend'&&!pend.length)return;
+    shown++;
+    h+=`<div class="card" data-t="${t.k}"><div class="head"><h2 style="margin:0">${esc(t.nome)} <span class="mu">· ${fmt(t.dia)}</span></h2><div class="acts"><button class="btn" data-all="aprovado">Aprovar pendentes</button><button class="btn2" data-all="reprovado">Reprovar pendentes</button></div></div>
+    ${all.length&&all[0][1].atividade?'<div style="margin:4px 0"><b>Atividade:</b> '+esc(all[0][1].atividade)+'</div>':''}<div class="mu">${all.length} vão fazer hora extra · ${pend.length} aguardando${nao.length?' · Não vão: '+esc(nao.join(', ')):''}</div>`;
+    rows.forEach(([k,i,s])=>{h+=`<div class="row" data-k="${k}"><div class="nm">${esc(i.nome)}<div class="when2">${fmt(i.dia)} · ${esc(i.ini)} às ${esc(i.fim)}</div></div>${badge(s)}<div class="acts"><button class="btn2 ok${s==='aprovado'?' on':''}" data-d="aprovado">Aprovar</button><button class="btn2 no${s==='reprovado'?' on':''}" data-d="reprovado">Reprovar</button></div></div>`});
+    h+='</div>';
+  });
+  if(!shown)h+=`<div class="card mu">${L.length?'Nenhuma lista pendente.':'Nenhum encarregado enviou lista ainda.'}</div>`;
+  el.innerHTML=h;
+}
+
+async function apagarListas(){
+  const ids=Object.entries(todos).filter(([,p])=>!fdia||diaDe(p)===fdia).map(x=>x[0]);
+  try{await Promise.all(ids.flatMap(id=>[db.doc('pedidos/'+id).delete(),db.doc('decisoes/'+id).delete().catch(()=>{})]));toast(ids.length+' lista(s) apagada(s)')}catch(e){toast(erro(e))}
+  apagar=null;fdia='';renderCoord();
+}
+async function decidir(tk,ks,status){
+  const p=todos[tk],cur=JSON.parse(JSON.stringify((decisoes[tk]||{}).itens||{}));
+  ks.forEach(k=>{cur[k]={status,sig:sig(p.itens[k])}});
+  try{await db.doc('decisoes/'+tk).set({itens:cur,em:Date.now()})}catch(e){toast(erro(e))}
+}
+
+async function baixarCsv(){
+  if(!dl)return toast('Download indisponível aqui.');
+  const lin=[['Encarregado','Nome','Dia','Início','Fim','Atividade']];
+  Object.entries(todos).forEach(([id,p])=>{if(fdia&&diaDe(p)!==fdia)return;const t={k:id,nome:p.encarregado||id};Object.entries(p.itens||{}).forEach(([k,i])=>{if(i.vai&&stOf(t.k,k,i)==='aprovado')lin.push([t.nome,i.nome,fmt(i.dia),i.ini,i.fim,i.atividade||''])})});
+  if(lin.length<2)return toast('Nenhuma hora extra aprovada ainda.');
+  const txt='\uFEFF'+lin.map(r=>r.map(c=>'"'+String(c).replace(/"/g,'""')+'"').join(';')).join('\r\n');
+  try{await dl.save({filename:'horas-extras-aprovadas'+(fdia?'-'+fdia:'')+'.csv',data:new Blob([txt],{type:'text/csv'})})}catch(e){if(!e||e.code!=='declined')toast('Não foi possível baixar.')}
+}
+
+function lerArquivo(f){
+  const r=new FileReader();
+  r.onload=()=>{try{
+    const wb=XLSX.read(r.result,{type:'array'});
+    const ws=wb.Sheets[wb.SheetNames[0]],rg=XLSX.utils.decode_range(ws['!ref']);rg.s.c=0;const rows=XLSX.utils.sheet_to_json(ws,{header:1,defval:'',range:rg}).filter(x=>x.some(c=>String(c).trim()));
+    if(rows.length<2)return toast('A planilha está vazia.');
+    
+    
+    mapN=0;mapE=Math.min(5,rows[0].length-1);pending=rows;renderImp();
+  }catch(x){toast('Não consegui ler esse arquivo.')}};
+  r.readAsArrayBuffer(f);
+}
+function pares(){
+  const out=[];let last='',filled=0,sem=0;
+  pending.slice(1).forEach(r=>{
+    const nome=String(r[mapN]).trim().replace(/\s+/g,' ');let enc=String(r[mapE]).trim().replace(/\s+/g,' ');
+    if(!nome)return;
+    if(!enc&&fillDown&&last){enc=last;filled++}
+    if(!enc){sem++;return}
+    last=enc;out.push({nome,enc});
+  });
+  return{out,filled,sem};
+}
+async function importar(){
+  const pessoas=pares().out;
+  if(JSON.stringify(pessoas).length>240000)return toast('Planilha grande demais. Divida em partes.');
+  try{await db.doc('efetivo/dados').set({pessoas,em:Date.now()});pending=null;renderImp();toast('Efetivo importado: '+pessoas.length+' pessoas')}catch(e){toast(erro(e))}
+}
+
+const V=$('#view');
+V.addEventListener('click',e=>{
+  const b=e.target.closest('button');if(!b)return;
+  const row=b.closest('.row'),card=b.closest('[data-t]');
+  if(b.dataset.v!==undefined){
+    const k=row.dataset.k,d=getDraft(sel);d[k]=Object.assign(d[k]||{},{vai:b.dataset.v==='1'});dirty[sel]=true;
+    row.querySelectorAll('.seg button').forEach(x=>x.classList.toggle('on',x===b));
+  }else if(b.id==='bapply'){
+    const v={dia:$('#bd').value,ini:$('#bi').value,fim:$('#bf').value},d=getDraft(sel);
+    V.querySelectorAll('.row').forEach(r=>{const k=r.dataset.k;if(d[k]&&d[k].vai===true){Object.assign(d[k],v);r.querySelector('[data-f=dia]').value=v.dia;r.querySelector('[data-f=ini]').value=v.ini;r.querySelector('[data-f=fim]').value=v.fim}});
+    dirty[sel]=true;
+  }else if(b.id==='send'){const t=teams().find(x=>x.k===sel);t&&enviar(t)}
+  else if(b.dataset.fil){filtro=b.dataset.fil;renderCoord()}
+  else if(b.dataset.d&&card)decidir(card.dataset.t,[row.dataset.k],b.dataset.d);
+  else if(b.dataset.all&&card){
+    const p=todos[card.dataset.t],ks=Object.entries(p.itens).filter(([k,i])=>i.vai&&stOf(card.dataset.t,k,i)==='pendente').map(x=>x[0]);
+    ks.length&&decidir(card.dataset.t,ks,b.dataset.all);
+  }
+  else if(b.id==='imp')importar();
+  else if(b.id==='cancel'){pending=null;renderImp()}
+  else if(b.id==='pwgo')senhaOk();
+  else if(b.id==='pwx'){modoSenha='';render()}
+  else if(b.id==='apg'){apagar=1;renderCoord()}
+  else if(b.id==='apgx'){apagar=null;renderCoord()}
+  else if(b.id==='apgok')apagarListas();
+  else if(b.id==='csv')baixarCsv();
+});
+V.addEventListener('input',e=>{
+  const t=e.target,f=t.dataset.f;if(!f)return;
+  getQ(sel)[f]=t.value;dirty[sel]=true;
+});
+V.addEventListener('change',e=>{
+  const t=e.target;
+  if(t.id==='enc'){sel=t.value;try{localStorage.setItem('he_enc',sel)}catch(x){}t.blur();renderEnc()}
+  else if(t.id==='file'&&t.files[0])lerArquivo(t.files[0]);
+  else if(t.id==='fdia'){fdia=t.value;apagar=null;t.blur();renderCoord()}
+  else if(t.id==='fill'){fillDown=t.checked;renderImp()}
+  else if(t.id==='mn'||t.id==='me'){mapN=+$('#mn').value;mapE=+$('#me').value;renderImp()}
+});
+$('#tabs').addEventListener('click',e=>{const b=e.target.closest('[data-tab]');if(b){tab=b.dataset.tab;modoSenha='';render();return}const x=e.target.closest('[data-sx]');if(x){if(x.dataset.sx==='lock'){liberado=false;modoSenha='';try{sessionStorage.removeItem('he_ok')}catch(z){}}else modoSenha='trocar';render()}});
+
+V.addEventListener('keydown',e=>{if(e.key==='Enter'&&e.target.id&&e.target.id.indexOf('pw')===0){const g=$('#pwgo');g&&g.click()}});
+function refresh(){const a=document.activeElement;if(a&&V.contains(a)&&/INPUT|SELECT/.test(a.tagName))return;render()}
+(async()=>{
+  const c=window.claude;
+  try{db=c&&await c.use('db')}catch(e){}
+  try{dl=c&&await c.use('downloads')}catch(e){}
+  try{const u=c&&await c.use('user');isCoord=u?await u.canEdit():false}catch(e){}
+  if(!db){V.innerHTML='<div class="card"><h2>Entre para usar o app</h2><p class="mu">Abra este link logado na sua conta Claude.</p></div>';return}
+  const err=()=>toast('Conexão perdida. Recarregue a página.');
+  if(isCoord)db.doc('config/senha').onSnapshot(s=>{senha=s.exists?s.data():null;if(senha&&!liberado){try{liberado=sessionStorage.getItem('he_ok')===senha.hash}catch(e){}}refresh()},err);
+  db.doc('efetivo/dados').onSnapshot(s=>{roster=s.exists?(s.data().pessoas||[]):[];refresh()},err);
+  db.collection('pedidos').onSnapshot(s=>{todos={};pedidos={};const hj=hoje();s.docs.forEach(d=>{const p=d.data();p._id=d.id;const ek=p.ek||d.id,dd=diaDe(p);todos[d.id]=p;if(dd&&dd<hj)return;if(!pedidos[ek]||(p.enviadoEm||0)>(pedidos[ek].enviadoEm||0))pedidos[ek]=p});refresh()},err);
+  db.collection('decisoes').onSnapshot(s=>{decisoes={};s.docs.forEach(d=>decisoes[d.id]=d.data());refresh()},err);
+  render();
+})();
+</script>
+</body>
+</html>
