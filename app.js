@@ -10,7 +10,8 @@ try{sel=localStorage.getItem('he_enc')||'';tok=sessionStorage.getItem('he_t')||'
 let tt;function toast(m){const t=$('#toast');t.textContent=m;t.style.display='block';clearTimeout(tt);tt=setTimeout(()=>t.style.display='none',3500)}
 async function api(a,d={}){
   const r=await fetch('/api',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({a,t:tok,...d})});
-  const j=await r.json().catch(()=>({erro:'Resposta inválida do servidor'}));
+  const txt=await r.text();let j=null;try{j=JSON.parse(txt)}catch(e){}
+  if(!j)throw new Error('O servidor respondeu '+r.status+(r.status===404?' (função /api não encontrada: confira se a pasta api foi enviada ao GitHub)':' (erro interno: veja os logs no Vercel)'));
   if(!r.ok){if(r.status===401&&a!=='login'){tok='';try{sessionStorage.removeItem('he_t')}catch(e){}}throw new Error(j.erro||'Erro de conexão')}
   return j;
 }
