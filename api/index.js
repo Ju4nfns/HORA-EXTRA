@@ -1,8 +1,9 @@
 // Servidor único do sistema Hora Extra (Vercel Serverless Function).
 // Banco: Upstash Redis via REST. Sem dependências npm.
 const crypto = require('crypto');
-const RURL = process.env.KV_REST_API_URL || process.env.UPSTASH_REDIS_REST_URL;
-const RTOK = process.env.KV_REST_API_TOKEN || process.env.UPSTASH_REDIS_REST_TOKEN;
+const envFind = (...suf) => { const k = Object.keys(process.env).find(n => suf.some(s => n === s || n.endsWith('_' + s))); return k ? process.env[k] : undefined; };
+const RURL = envFind('KV_REST_API_URL', 'UPSTASH_REDIS_REST_URL');
+const RTOK = envFind('KV_REST_API_TOKEN', 'UPSTASH_REDIS_REST_TOKEN');
 const SENHA = process.env.COORD_PASSWORD || '';
 const SEG = process.env.AUTH_SECRET || SENHA;
 const TZ = process.env.APP_TZ || 'America/Sao_Paulo';
