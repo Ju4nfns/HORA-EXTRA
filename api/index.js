@@ -1,6 +1,7 @@
 // Servidor único do sistema Hora Extra (Vercel Serverless Function).
 // Banco: Upstash Redis via REST. Sem dependências npm.
 const crypto = require('crypto');
+// Aceita os nomes de variável do Upstash com ou sem prefixo (ex.: STORAGE_KV_REST_API_URL).
 const envFind = (...suf) => { const k = Object.keys(process.env).find(n => suf.some(s => n === s || n.endsWith('_' + s))); return k ? process.env[k] : undefined; };
 const RURL = envFind('KV_REST_API_URL', 'UPSTASH_REDIS_REST_URL');
 const RTOK = envFind('KV_REST_API_TOKEN', 'UPSTASH_REDIS_REST_TOKEN');
@@ -36,7 +37,10 @@ module.exports = async (req, res) => {
   res.setHeader('Cache-Control', 'no-store');
   const send = (c, o) => res.status(c).json(o);
   if (req.method !== 'POST') return send(405, { erro: 'Método inválido' });
-  if (!RURL || !RTOK) return send(500, { erro: 'Banco de dados não configurado (Upstash Redis). Veja o README.' });
+  if (!RURL || !RTOK) {
+    const nomes = Object.keys(process.env).filter(n => /KV|REDIS|UPSTASH/i.test(n)).join(', ') || 'nenhuma';
+    return send(500, { erro: 'Banco não configurado. Variáveis de banco encontradas: ' + nomes + '. Se o banco já foi conectado, faça um Redeploy.' });
+  }
   const b = (typeof req.body === 'string' ? parse(req.body) : req.body) || {};
   const auth = () => tokenOk(b.t);
   const nega = () => send(401, { erro: 'Sessão expirada. Entre novamente.' });
