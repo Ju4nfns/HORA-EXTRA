@@ -79,6 +79,14 @@ module.exports = async (req, res) => {
           if (typeof m[k] !== 'boolean') return send(400, { erro: 'Marque Vai ou Não vai para ' + p.nome });
           itens[k] = { nome: p.nome, funcao: p.funcao || '', vai: m[k] }; if (m[k]) alguem = true;
         }
+        const ex = Array.isArray(b.extras) ? b.extras.slice(0, 30) : [];
+        for (const x of ex) {
+          const nome = String((x && x.nome) || '').trim().replace(/\s+/g, ' ').slice(0, 120), k = slug(nome);
+          if (!nome) continue;
+          if (itens[k]) return send(400, { erro: nome + ' já está na equipe.' });
+          if (itens['x-' + k]) return send(400, { erro: nome + ' foi adicionado duas vezes.' });
+          itens['x-' + k] = { nome, funcao: String(x.funcao || '').trim().replace(/\s+/g, ' ').slice(0, 80), extra: true, vai: true }; alguem = true;
+        }
         const at = String(b.atividade || '').trim().slice(0, 200);
         if (alguem) {
           if (!/^\d{4}-\d{2}-\d{2}$/.test(b.dia || '') || !/^\d{2}:\d{2}$/.test(b.ini || '') || !/^\d{2}:\d{2}$/.test(b.fim || '')) return send(400, { erro: 'Preencha o dia e o horário da hora extra' });
