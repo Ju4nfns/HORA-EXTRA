@@ -5,7 +5,7 @@ const fmt=d=>d?d.split('-').reverse().join('/'):'—';
 const sig=i=>[i.dia,i.ini,i.fim].concat(i.atividade?[i.atividade]:[]).join('|');
 const diaDe=p=>p.dia||((Object.values(p.itens||{}).find(i=>i.vai)||{}).dia)||'';
 let encs=[],team=null,sel='',tab='enc',tok='',painel={todos:{},decisoes:{},pessoas:0,equipes:0};
-let marcas={},q={},dirty=false,filtro='pend',fdia='',apagar=false,pending=null,fillDown=true,mapN=0,mapE=1,mapF=-1;
+let marcas={},q={},extras=[],dirty=false,filtro='pend',fdia='',apagar=false,pending=null,fillDown=true,mapN=0,mapE=1,mapF=-1;
 try{sel=localStorage.getItem('he_enc')||'';tok=sessionStorage.getItem('he_t')||''}catch(e){}
 let tt;function toast(m){const t=$('#toast');t.textContent=m;t.style.display='block';clearTimeout(tt);tt=setTimeout(()=>t.style.display='none',6000)}
 async function api(a,d={}){
@@ -32,7 +32,7 @@ async function loadPainel(){try{painel=await api('painel')}catch(e){if(tok)toast
 async function loadTeam(){
   if(!sel){team=null;return}
   const t=await api('equipe',{ek:sel});team=t;
-  if(!dirty){marcas={};q={};const l=t.lista;if(l){Object.entries(l.itens||{}).forEach(([k,i])=>{marcas[k]=i.vai});const f=Object.values(l.itens||{}).find(i=>i.vai);if(f)q={dia:f.dia,ini:f.ini,fim:f.fim,atividade:f.atividade||''}}}
+  if(!dirty){marcas={};q={};extras=[];const l=t.lista;if(l){Object.entries(l.itens||{}).forEach(([k,i])=>{if(i.extra)extras.push({nome:i.nome,funcao:i.funcao||''});else marcas[k]=i.vai});const f=Object.values(l.itens||{}).find(i=>i.vai);if(f)q={dia:f.dia,ini:f.ini,fim:f.fim,atividade:f.atividade||''}}}
 }
 async function loadEnc(){
   try{encs=(await api('enc')).encarregados;if(sel&&!encs.some(e=>e.k===sel))sel='';await loadTeam()}catch(e){toast(e.message)}
@@ -51,16 +51,19 @@ function renderEnc(){
       const k=slug(n),i=l&&l.itens&&l.itens[k];
       h+=`<div class="row" data-k="${k}"><div class="nm">${esc(n)}${team.funcoes&&team.funcoes[k]?'<div class="when2">'+esc(team.funcoes[k])+'</div>':''}</div><div class="seg"><button data-v="1" class="y${marcas[k]===true?' on':''}">Vai</button><button data-v="0" class="n${marcas[k]===false?' on':''}">Não vai</button></div>${i&&i.vai?badge(i.status):''}</div>`;
     });
+    extras.forEach((x,ix)=>{const it=l&&l.itens&&l.itens['x-'+slug(x.nome)];h+=`<div class="row"><div class="nm">${esc(x.nome)}${x.funcao?'<div class="when2">'+esc(x.funcao)+'</div>':''}</div><span class="mu">Adicional · vai</span>${it&&it.vai?badge(it.status):''}<button class="btn2" data-rx="${ix}">Remover</button></div>`});
+    h+=`<div class="bulk when" style="margin-top:10px"><b>Pessoa que não está na lista (vale só para esta lista):</b><input type="text" id="xn" placeholder="Nome" maxlength="120" aria-label="Nome da pessoa" style="flex:1 1 200px"><input type="text" id="xf" placeholder="Função" maxlength="80" aria-label="Função" style="flex:1 1 140px"><button class="btn2" id="xadd">Adicionar</button></div>`;
     h+=`<div class="head" style="margin-top:12px"><span class="mu">${l?'Última lista (para '+fmt(diaDe(l))+') enviada em '+new Date(l.enviadoEm).toLocaleString('pt-BR',{dateStyle:'short',timeStyle:'short'}):'Ainda não enviada'}</span><button class="btn" id="send">Enviar para aprovação</button></div></div>`;
   }
   el.innerHTML=h;
 }
 async function enviar(){
+  const xn=$('#xn');if(xn&&xn.value.trim())return toast('Clique em "Adicionar" para incluir a pessoa digitada, ou apague o nome.');
   for(const n of team.gente)if(typeof marcas[slug(n)]!=='boolean')return toast('Marque Vai ou Não vai para '+n);
-  const vai=team.gente.some(n=>marcas[slug(n)]);
+  const vai=extras.length>0||team.gente.some(n=>marcas[slug(n)]);
   if(vai&&(!q.dia||!q.ini||!q.fim))return toast('Preencha o dia e o horário da hora extra');
   if(vai&&!(q.atividade||'').trim())return toast('Informe a atividade que será feita');
-  try{await api('enviar',{ek:sel,dia:q.dia,ini:q.ini,fim:q.fim,atividade:q.atividade,marcas});dirty=false;toast('Lista enviada para aprovação');await loadTeam();render()}
+  try{await api('enviar',{ek:sel,dia:q.dia,ini:q.ini,fim:q.fim,atividade:q.atividade,marcas,extras});dirty=false;toast('Lista enviada para aprovação');await loadTeam();render()}
   catch(e){toast(e.message)}
 }
 
@@ -121,7 +124,7 @@ function renderCoord(){
     shown++;
     h+=`<div class="card" data-t="${esc(t.k)}"><div class="head"><h2 style="margin:0">${esc(t.nome)} <span class="mu">· ${fmt(t.dia)}</span></h2><div class="acts"><button class="btn" data-all="aprovado">Aprovar pendentes</button><button class="btn2" data-all="reprovado">Reprovar pendentes</button></div></div>
     ${all.length&&all[0][1].atividade?'<div style="margin:4px 0"><b>Atividade:</b> '+esc(all[0][1].atividade)+'</div>':''}<div class="mu">${all.length} vão fazer hora extra · ${pend.length} aguardando${nao.length?' · Não vão: '+esc(nao.join(', ')):''}</div>`;
-    rows.forEach(([k,i,s])=>{h+=`<div class="row" data-k="${esc(k)}"><div class="nm">${esc(i.nome)}${i.funcao?' <span class="mu" style="font-weight:400">· '+esc(i.funcao)+'</span>':''}<div class="when2">${fmt(i.dia)} · ${esc(i.ini)} às ${esc(i.fim)}</div></div>${badge(s)}<div class="acts"><button class="btn2 ok${s==='aprovado'?' on':''}" data-d="aprovado">Aprovar</button><button class="btn2 no${s==='reprovado'?' on':''}" data-d="reprovado">Reprovar</button></div></div>`});
+    rows.forEach(([k,i,s])=>{h+=`<div class="row" data-k="${esc(k)}"><div class="nm">${esc(i.nome)}${i.funcao?' <span class="mu" style="font-weight:400">· '+esc(i.funcao)+'</span>':''}${i.extra?' <span class="mu" style="font-weight:400">· adicional</span>':''}<div class="when2">${fmt(i.dia)} · ${esc(i.ini)} às ${esc(i.fim)}</div></div>${badge(s)}<div class="acts"><button class="btn2 ok${s==='aprovado'?' on':''}" data-d="aprovado">Aprovar</button><button class="btn2 no${s==='reprovado'?' on':''}" data-d="reprovado">Reprovar</button></div></div>`});
     h+='</div>';
   });
   if(!shown)h+=`<div class="card mu">${L.length?'Nenhuma lista pendente.':'Nenhum encarregado enviou lista ainda.'}</div>`;
@@ -153,8 +156,8 @@ async function apagarListas(){
   apagar=false;fdia='';await loadPainel();render();
 }
 function baixarCsv(){
-  const lin=[['Encarregado','Nome','Função','Dia','Início','Fim','Atividade']];
-  Object.entries(painel.todos||{}).forEach(([id,p])=>{if(fdia&&diaDe(p)!==fdia)return;Object.entries(p.itens||{}).forEach(([k,i])=>{if(i.vai&&stOf(id,k,i)==='aprovado')lin.push([p.encarregado,i.nome,i.funcao||'',fmt(i.dia),i.ini,i.fim,i.atividade||''])})});
+  const lin=[['Encarregado','Nome','Função','Dia','Início','Fim','Atividade','Adicional']];
+  Object.entries(painel.todos||{}).forEach(([id,p])=>{if(fdia&&diaDe(p)!==fdia)return;Object.entries(p.itens||{}).forEach(([k,i])=>{if(i.vai&&stOf(id,k,i)==='aprovado')lin.push([p.encarregado,i.nome,i.funcao||'',fmt(i.dia),i.ini,i.fim,i.atividade||'',i.extra?'Sim':''])})});
   if(lin.length<2)return toast('Nenhuma hora extra aprovada ainda.');
   const txt='\uFEFF'+lin.map(r=>r.map(c=>'"'+String(c).replace(/"/g,'""')+'"').join(';')).join('\r\n');
   const a=$d.createElement('a');a.href=URL.createObjectURL(new Blob([txt],{type:'text/csv;charset=utf-8'}));a.download='horas-extras-aprovadas'+(fdia?'-'+fdia:'')+'.csv';$d.body.appendChild(a);a.click();a.remove();
@@ -168,6 +171,13 @@ V.addEventListener('click',e=>{
     marcas[row.dataset.k]=b.dataset.v==='1';dirty=true;
     row.querySelectorAll('.seg button').forEach(x=>x.classList.toggle('on',x===b));
   }
+  else if(b.id==='xadd'){
+    const nome=$('#xn').value.trim().replace(/\s+/g,' '),funcao=$('#xf').value.trim().replace(/\s+/g,' '),k=slug(nome);
+    if(!nome)return toast('Digite o nome da pessoa');
+    if(team.gente.some(n=>slug(n)===k)||extras.some(x=>slug(x.nome)===k))return toast(nome+' já está na lista');
+    extras.push({nome,funcao});dirty=true;renderEnc();
+  }
+  else if(b.dataset.rx!==undefined){extras.splice(+b.dataset.rx,1);dirty=true;renderEnc()}
   else if(b.id==='send')enviar();
   else if(b.id==='pwgo')entrar();
   else if(b.dataset.fil){filtro=b.dataset.fil;renderCoord()}
