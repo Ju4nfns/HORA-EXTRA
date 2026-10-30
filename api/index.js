@@ -68,7 +68,7 @@ module.exports = async (req, res) => {
           if (!l || (p.enviadoEm || 0) > (l.enviadoEm || 0)) l = { ...p, id };
         });
         if (l) { const dec = (ds[l.id] || {}).itens || {}; Object.entries(l.itens || {}).forEach(([k, i]) => { if (i.vai) { const x = dec[k]; i.status = x && x.sig === sig(i) ? x.status : 'pendente'; } }); }
-        return send(200, { nome: gente[0].enc, gente: gente.map(p => p.nome), lista: l });
+        return send(200, { nome: gente[0].enc, gente: gente.map(p => p.nome), funcoes: Object.fromEntries(gente.map(p => [slug(p.nome), p.funcao || ''])), lista: l });
       }
       case 'enviar': {
         const r = await roster(), gente = r.pessoas.filter(p => slug(p.enc) === b.ek);
@@ -77,7 +77,7 @@ module.exports = async (req, res) => {
         for (const p of gente) {
           const k = slug(p.nome);
           if (typeof m[k] !== 'boolean') return send(400, { erro: 'Marque Vai ou Não vai para ' + p.nome });
-          itens[k] = { nome: p.nome, vai: m[k] }; if (m[k]) alguem = true;
+          itens[k] = { nome: p.nome, funcao: p.funcao || '', vai: m[k] }; if (m[k]) alguem = true;
         }
         const at = String(b.atividade || '').trim().slice(0, 200);
         if (alguem) {
@@ -96,7 +96,7 @@ module.exports = async (req, res) => {
       }
       case 'importar': {
         if (!auth()) return nega();
-        const ps = (Array.isArray(b.pessoas) ? b.pessoas : []).map(p => ({ nome: String(p.nome || '').trim().slice(0, 120), enc: String(p.enc || '').trim().slice(0, 120) })).filter(p => p.nome && p.enc);
+        const ps = (Array.isArray(b.pessoas) ? b.pessoas : []).map(p => ({ nome: String(p.nome || '').trim().slice(0, 120), enc: String(p.enc || '').trim().slice(0, 120), funcao: String(p.funcao || '').trim().slice(0, 80) })).filter(p => p.nome && p.enc);
         if (!ps.length) return send(400, { erro: 'Nenhuma pessoa válida para importar.' });
         await R('SET', 'he:roster', JSON.stringify({ pessoas: ps, em: Date.now() }));
         return send(200, { ok: true, n: ps.length });
