@@ -19,10 +19,10 @@ const stOf=(id,k,it)=>{const x=(((painel.decisoes||{})[id]||{}).itens||{})[k];re
 const badge=s=>`<span class="badge ${s}">${{pendente:'Aguardando',aprovado:'Aprovado',reprovado:'Reprovado'}[s]||''}</span>`;
 
 function renderTabs(){
-  const t=[['enc','Encarregado'],['imp','Importar'],['coord','Coordenação']];
+  const t=[['enc','Encarregado'],['imp','Importar'],['coord','Coordenação'],['res','Resumo']];
   $('#tabs').innerHTML=t.map(([k,n])=>`<button class="tab" role="tab" data-tab="${k}" aria-selected="${tab===k}">${n}</button>`).join('')+(tok?'<span class="acts" style="margin-left:auto;align-self:center"><button class="btn2" data-sx="sair">Sair da coordenação</button></span>':'');
 }
-function render(){renderTabs();if(tab!=='enc'&&!tok)return renderLock();tab==='coord'?renderCoord():tab==='imp'?renderImp():renderEnc()}
+function render(){renderTabs();if(tab!=='enc'&&!tok)return renderLock();tab==='coord'?renderCoord():tab==='res'?renderRes():tab==='imp'?renderImp():renderEnc()}
 function renderLock(){$('#view').innerHTML='<div class="card" style="max-width:420px"><h2>Área da coordenação</h2><p class="mu">Digite a senha para continuar.</p><input type="password" id="pw" autocomplete="current-password" aria-label="Senha" placeholder="Senha" style="width:100%;margin-bottom:8px"><button class="btn" id="pwgo">Entrar</button></div>'}
 async function entrar(){
   try{tok=(await api('login',{senha:$('#pw').value})).token;try{sessionStorage.setItem('he_t',tok)}catch(e){}await loadPainel();render()}
@@ -127,6 +127,24 @@ function renderCoord(){
   if(!shown)h+=`<div class="card mu">${L.length?'Nenhuma lista pendente.':'Nenhum encarregado enviou lista ainda.'}</div>`;
   $('#view').innerHTML=h;
 }
+function renderRes(){
+  const todos=painel.todos||{},m={};
+  const dias=[...new Set(Object.values(todos).map(diaDe).filter(Boolean))].sort().reverse();
+  Object.entries(todos).forEach(([id,p])=>{
+    if(fdia&&diaDe(p)!==fdia)return;
+    Object.entries(p.itens||{}).forEach(([k,i])=>{
+      if(!i.vai)return;
+      const f=(i.funcao||'').trim()||'Sem função',r=m[f]||(m[f]={vao:0,pendente:0,aprovado:0,reprovado:0});
+      r.vao++;r[stOf(id,k,i)]++;
+    });
+  });
+  const linhas=Object.entries(m).sort((a,b)=>b[1].vao-a[1].vao||a[0].localeCompare(b[0],'pt'));
+  const tot=linhas.reduce((t,[,r])=>({vao:t.vao+r.vao,pendente:t.pendente+r.pendente,aprovado:t.aprovado+r.aprovado,reprovado:t.reprovado+r.reprovado}),{vao:0,pendente:0,aprovado:0,reprovado:0});
+  let h=`<div class="head"><h2 style="margin:0">Resumo por função</h2><label class="mu">Data <select id="fdia" style="width:auto;margin-left:6px"><option value="">Todas as datas</option>${dias.map(d=>`<option value="${esc(d)}"${d===fdia?' selected':''}>${fmt(d)}</option>`).join('')}</select></label></div>`;
+  if(!linhas.length){$('#view').innerHTML=h+'<div class="card mu">Ninguém foi marcado como "Vai" ainda'+(fdia?' nesta data':'')+'.</div>';return}
+  h+=`<div class="card" style="overflow-x:auto"><table class="pv" style="font-size:16px"><tr><th>Função</th><th>Vão</th><th>Aprovados</th><th>Aguardando</th><th>Reprovados</th></tr>${linhas.map(([f,r])=>`<tr><td>${esc(f)}</td><td><b>${r.vao}</b></td><td>${r.aprovado}</td><td>${r.pendente}</td><td>${r.reprovado}</td></tr>`).join('')}<tr><td><b>Total</b></td><td><b>${tot.vao}</b></td><td><b>${tot.aprovado}</b></td><td><b>${tot.pendente}</b></td><td><b>${tot.reprovado}</b></td></tr></table></div>`;
+  $('#view').innerHTML=h;
+}
 async function decidir(id,keys,status){
   try{await api('decidir',{id,keys,status});await loadPainel();renderCoord()}catch(e){toast(e.message);render()}
 }
@@ -170,7 +188,7 @@ V.addEventListener('change',e=>{
   const t=e.target;
   if(t.id==='enc'){sel=t.value;dirty=false;try{localStorage.setItem('he_enc',sel)}catch(x){}t.blur();loadTeam().then(render).catch(er=>toast(er.message))}
   else if(t.id==='file'&&t.files[0])lerArquivo(t.files[0]);
-  else if(t.id==='fdia'){fdia=t.value;apagar=false;t.blur();renderCoord()}
+  else if(t.id==='fdia'){fdia=t.value;apagar=false;t.blur();tab==='res'?renderRes():renderCoord()}
   else if(t.id==='fill'){fillDown=t.checked;renderImp()}
   else if(t.id==='mn'||t.id==='me'||t.id==='mf'){mapN=+$('#mn').value;mapE=+$('#me').value;mapF=+$('#mf').value;renderImp()}
 });
