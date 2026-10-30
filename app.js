@@ -5,9 +5,9 @@ const fmt=d=>d?d.split('-').reverse().join('/'):'—';
 const sig=i=>[i.dia,i.ini,i.fim].concat(i.atividade?[i.atividade]:[]).join('|');
 const diaDe=p=>p.dia||((Object.values(p.itens||{}).find(i=>i.vai)||{}).dia)||'';
 let encs=[],team=null,sel='',tab='enc',tok='',painel={todos:{},decisoes:{},pessoas:0,equipes:0};
-let marcas={},q={},dirty=false,filtro='pend',fdia='',apagar=false,pending=null,fillDown=true,mapN=0,mapE=1;
+let marcas={},q={},dirty=false,filtro='pend',fdia='',apagar=false,pending=null,fillDown=true,mapN=0,mapE=1,mapF=-1;
 try{sel=localStorage.getItem('he_enc')||'';tok=sessionStorage.getItem('he_t')||''}catch(e){}
-let tt;function toast(m){const t=$('#toast');t.textContent=m;t.style.display='block';clearTimeout(tt);tt=setTimeout(()=>t.style.display='none',3500)}
+let tt;function toast(m){const t=$('#toast');t.textContent=m;t.style.display='block';clearTimeout(tt);tt=setTimeout(()=>t.style.display='none',6000)}
 async function api(a,d={}){
   const r=await fetch('/api',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({a,t:tok,...d})});
   const txt=await r.text();let j=null;try{j=JSON.parse(txt)}catch(e){}
@@ -49,7 +49,7 @@ function renderEnc(){
     <div class="bulk when"><b>Dia e horário da hora extra:</b><input type="date" data-f="dia" value="${esc(q.dia||'')}" aria-label="Dia"><input type="time" data-f="ini" value="${esc(q.ini||'')}" aria-label="Início"><span>até</span><input type="time" data-f="fim" value="${esc(q.fim||'')}" aria-label="Fim"><label style="flex:1 1 100%"><b>Atividade que será feita:</b><input type="text" data-f="atividade" value="${esc(q.atividade||'')}" maxlength="200" style="width:100%;margin-top:6px"></label></div>`;
     team.gente.forEach(n=>{
       const k=slug(n),i=l&&l.itens&&l.itens[k];
-      h+=`<div class="row" data-k="${k}"><div class="nm">${esc(n)}</div><div class="seg"><button data-v="1" class="y${marcas[k]===true?' on':''}">Vai</button><button data-v="0" class="n${marcas[k]===false?' on':''}">Não vai</button></div>${i&&i.vai?badge(i.status):''}</div>`;
+      h+=`<div class="row" data-k="${k}"><div class="nm">${esc(n)}${team.funcoes&&team.funcoes[k]?'<div class="when2">'+esc(team.funcoes[k])+'</div>':''}</div><div class="seg"><button data-v="1" class="y${marcas[k]===true?' on':''}">Vai</button><button data-v="0" class="n${marcas[k]===false?' on':''}">Não vai</button></div>${i&&i.vai?badge(i.status):''}</div>`;
     });
     h+=`<div class="head" style="margin-top:12px"><span class="mu">${l?'Última lista (para '+fmt(diaDe(l))+') enviada em '+new Date(l.enviadoEm).toLocaleString('pt-BR',{dateStyle:'short',timeStyle:'short'}):'Ainda não enviada'}</span><button class="btn" id="send">Enviar para aprovação</button></div></div>`;
   }
@@ -71,19 +71,19 @@ function pares(){
     if(!nome)return;
     if(!enc&&fillDown&&last){enc=last;filled++}
     if(!enc){sem++;return}
-    last=enc;out.push({nome,enc});
+    last=enc;out.push({nome,enc,funcao:mapF>=0?String(r[mapF]==null?'':r[mapF]).trim().replace(/\s+/g,' '):''});
   });
   return{out,filled,sem};
 }
 function renderImp(){
-  let h=`<div class="card"><h2>Efetivo</h2><p class="mu">${painel.pessoas?painel.pessoas+' pessoas em '+painel.equipes+' equipes.':'Nenhum efetivo importado ainda.'} Envie a planilha (.xlsx de preferência): coluna A com o nome do colaborador e coluna F com o encarregado, e a primeira linha como cabeçalho. Importar de novo substitui o efetivo.</p><input type="file" id="file" accept=".xlsx,.xls,.csv" aria-label="Planilha do efetivo">`;
+  let h=`<div class="card"><h2>Efetivo</h2><p class="mu">${painel.pessoas?painel.pessoas+' pessoas em '+painel.equipes+' equipes.':'Nenhum efetivo importado ainda.'} Envie a planilha (.xlsx de preferência): coluna A com o nome do colaborador, coluna F com o encarregado e, se houver, uma coluna com a função. A primeira linha deve ser o cabeçalho. Importar de novo substitui o efetivo.</p><input type="file" id="file" accept=".xlsx,.xls,.csv" aria-label="Planilha do efetivo">`;
   if(pending){
     const hd=pending[0].map(String),opt=i=>hd.map((x,j)=>`<option value="${j}"${j===i?' selected':''}>${esc(x||'Coluna '+(j+1))}</option>`).join('');
     const P=pares(),n=P.out.length;
-    h+=`<div class="maps"><label>Coluna do nome<select id="mn">${opt(mapN)}</select></label><label>Coluna do encarregado<select id="me">${opt(mapE)}</select></label></div>
+    h+=`<div class="maps"><label>Coluna do nome<select id="mn">${opt(mapN)}</select></label><label>Coluna do encarregado<select id="me">${opt(mapE)}</select></label><label>Coluna da função<select id="mf"><option value="-1">(nenhuma)</option>${opt(mapF)}</select></label></div>
     <label style="display:block;margin:6px 0"><input type="checkbox" id="fill"${fillDown?' checked':''}> Se a célula do encarregado estiver vazia (ou mesclada), usar o encarregado da linha de cima</label>
     <p><b>${n} pessoas</b> em <b>${new Set(P.out.map(x=>slug(x.enc))).size} equipes</b> prontas para importar.${P.filled?' '+P.filled+' linhas usaram o encarregado da linha de cima.':''}${P.sem?' '+P.sem+' linhas sem encarregado serão ignoradas.':''} ${painel.pessoas?'Isso substitui o efetivo atual ('+painel.pessoas+' pessoas).':''}</p>
-    <table class="pv"><tr><th>Colaborador</th><th>Encarregado</th></tr>${P.out.slice(0,6).map(x=>`<tr><td>${esc(x.nome)}</td><td>${esc(x.enc)}</td></tr>`).join('')}</table>
+    <table class="pv"><tr><th>Colaborador</th><th>Função</th><th>Encarregado</th></tr>${P.out.slice(0,6).map(x=>`<tr><td>${esc(x.nome)}</td><td>${esc(x.funcao)}</td><td>${esc(x.enc)}</td></tr>`).join('')}</table>
     <div class="acts"><button class="btn" id="imp"${n&&mapN!==mapE?'':' disabled'}>Confirmar importação</button><button class="btn2" id="cancel">Cancelar</button></div>`;
   }
   $('#view').innerHTML=h+'</div>';
@@ -94,7 +94,7 @@ function lerArquivo(f){
     const wb=XLSX.read(r.result,{type:'array'}),ws=wb.Sheets[wb.SheetNames[0]],rg=XLSX.utils.decode_range(ws['!ref']);rg.s.c=0;
     const rows=XLSX.utils.sheet_to_json(ws,{header:1,defval:'',range:rg}).filter(x=>x.some(c=>String(c).trim()));
     if(rows.length<2)return toast('A planilha está vazia.');
-    mapN=0;mapE=Math.min(5,rows[0].length-1);pending=rows;renderImp();
+    mapN=0;mapE=Math.min(5,rows[0].length-1);mapF=rows[0].findIndex(x=>/fun[cç][aã]o|cargo/i.test(String(x)));pending=rows;renderImp();
   }catch(x){toast('Não consegui ler esse arquivo.')}};
   r.readAsArrayBuffer(f);
 }
@@ -121,7 +121,7 @@ function renderCoord(){
     shown++;
     h+=`<div class="card" data-t="${esc(t.k)}"><div class="head"><h2 style="margin:0">${esc(t.nome)} <span class="mu">· ${fmt(t.dia)}</span></h2><div class="acts"><button class="btn" data-all="aprovado">Aprovar pendentes</button><button class="btn2" data-all="reprovado">Reprovar pendentes</button></div></div>
     ${all.length&&all[0][1].atividade?'<div style="margin:4px 0"><b>Atividade:</b> '+esc(all[0][1].atividade)+'</div>':''}<div class="mu">${all.length} vão fazer hora extra · ${pend.length} aguardando${nao.length?' · Não vão: '+esc(nao.join(', ')):''}</div>`;
-    rows.forEach(([k,i,s])=>{h+=`<div class="row" data-k="${esc(k)}"><div class="nm">${esc(i.nome)}<div class="when2">${fmt(i.dia)} · ${esc(i.ini)} às ${esc(i.fim)}</div></div>${badge(s)}<div class="acts"><button class="btn2 ok${s==='aprovado'?' on':''}" data-d="aprovado">Aprovar</button><button class="btn2 no${s==='reprovado'?' on':''}" data-d="reprovado">Reprovar</button></div></div>`});
+    rows.forEach(([k,i,s])=>{h+=`<div class="row" data-k="${esc(k)}"><div class="nm">${esc(i.nome)}${i.funcao?' <span class="mu" style="font-weight:400">· '+esc(i.funcao)+'</span>':''}<div class="when2">${fmt(i.dia)} · ${esc(i.ini)} às ${esc(i.fim)}</div></div>${badge(s)}<div class="acts"><button class="btn2 ok${s==='aprovado'?' on':''}" data-d="aprovado">Aprovar</button><button class="btn2 no${s==='reprovado'?' on':''}" data-d="reprovado">Reprovar</button></div></div>`});
     h+='</div>';
   });
   if(!shown)h+=`<div class="card mu">${L.length?'Nenhuma lista pendente.':'Nenhum encarregado enviou lista ainda.'}</div>`;
@@ -135,8 +135,8 @@ async function apagarListas(){
   apagar=false;fdia='';await loadPainel();render();
 }
 function baixarCsv(){
-  const lin=[['Encarregado','Nome','Dia','Início','Fim','Atividade']];
-  Object.entries(painel.todos||{}).forEach(([id,p])=>{if(fdia&&diaDe(p)!==fdia)return;Object.entries(p.itens||{}).forEach(([k,i])=>{if(i.vai&&stOf(id,k,i)==='aprovado')lin.push([p.encarregado,i.nome,fmt(i.dia),i.ini,i.fim,i.atividade||''])})});
+  const lin=[['Encarregado','Nome','Função','Dia','Início','Fim','Atividade']];
+  Object.entries(painel.todos||{}).forEach(([id,p])=>{if(fdia&&diaDe(p)!==fdia)return;Object.entries(p.itens||{}).forEach(([k,i])=>{if(i.vai&&stOf(id,k,i)==='aprovado')lin.push([p.encarregado,i.nome,i.funcao||'',fmt(i.dia),i.ini,i.fim,i.atividade||''])})});
   if(lin.length<2)return toast('Nenhuma hora extra aprovada ainda.');
   const txt='\uFEFF'+lin.map(r=>r.map(c=>'"'+String(c).replace(/"/g,'""')+'"').join(';')).join('\r\n');
   const a=$d.createElement('a');a.href=URL.createObjectURL(new Blob([txt],{type:'text/csv;charset=utf-8'}));a.download='horas-extras-aprovadas'+(fdia?'-'+fdia:'')+'.csv';$d.body.appendChild(a);a.click();a.remove();
@@ -172,7 +172,7 @@ V.addEventListener('change',e=>{
   else if(t.id==='file'&&t.files[0])lerArquivo(t.files[0]);
   else if(t.id==='fdia'){fdia=t.value;apagar=false;t.blur();renderCoord()}
   else if(t.id==='fill'){fillDown=t.checked;renderImp()}
-  else if(t.id==='mn'||t.id==='me'){mapN=+$('#mn').value;mapE=+$('#me').value;renderImp()}
+  else if(t.id==='mn'||t.id==='me'||t.id==='mf'){mapN=+$('#mn').value;mapE=+$('#me').value;mapF=+$('#mf').value;renderImp()}
 });
 V.addEventListener('keydown',e=>{if(e.key==='Enter'&&e.target.id==='pw')entrar()});
 $('#tabs').addEventListener('click',async e=>{
