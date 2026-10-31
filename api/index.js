@@ -77,7 +77,7 @@ module.exports = async (req, res) => {
         for (const p of gente) {
           const k = slug(p.nome);
           if (typeof m[k] !== 'boolean') return send(400, { erro: 'Marque Vai ou Não vai para ' + p.nome });
-          itens[k] = { nome: p.nome, funcao: p.funcao || '', vai: m[k] }; if (m[k]) alguem = true;
+          itens[k] = { nome: p.nome, funcao: p.funcao || '', matricula: p.matricula || '', tipo: p.tipo || '', vai: m[k] }; if (m[k]) alguem = true;
         }
         const ex = Array.isArray(b.extras) ? b.extras.slice(0, 30) : [];
         for (const x of ex) {
@@ -85,7 +85,7 @@ module.exports = async (req, res) => {
           if (!nome) continue;
           if (itens[k]) return send(400, { erro: nome + ' já está na equipe.' });
           if (itens['x-' + k]) return send(400, { erro: nome + ' foi adicionado duas vezes.' });
-          itens['x-' + k] = { nome, funcao: String(x.funcao || '').trim().replace(/\s+/g, ' ').slice(0, 80), extra: true, vai: true }; alguem = true;
+          itens['x-' + k] = { nome, funcao: String(x.funcao || '').trim().replace(/\s+/g, ' ').slice(0, 80), matricula: String(x.matricula || '').trim().slice(0, 30), tipo: ['MOD', 'MOI'].includes(String(x.tipo || '').toUpperCase()) ? String(x.tipo).toUpperCase() : '', extra: true, vai: true }; alguem = true;
         }
         const at = String(b.atividade || '').trim().slice(0, 200);
         if (alguem) {
@@ -104,7 +104,7 @@ module.exports = async (req, res) => {
       }
       case 'importar': {
         if (!auth()) return nega();
-        const ps = (Array.isArray(b.pessoas) ? b.pessoas : []).map(p => ({ nome: String(p.nome || '').trim().slice(0, 120), enc: String(p.enc || '').trim().slice(0, 120), funcao: String(p.funcao || '').trim().slice(0, 80) })).filter(p => p.nome && p.enc);
+        const ps = (Array.isArray(b.pessoas) ? b.pessoas : []).map(p => ({ nome: String(p.nome || '').trim().slice(0, 120), enc: String(p.enc || '').trim().slice(0, 120), funcao: String(p.funcao || '').trim().slice(0, 80), matricula: String(p.matricula || '').trim().slice(0, 30), tipo: String(p.tipo || '').trim().toUpperCase().slice(0, 10) })).filter(p => p.nome && p.enc);
         if (!ps.length) return send(400, { erro: 'Nenhuma pessoa válida para importar.' });
         await R('SET', 'he:roster', JSON.stringify({ pessoas: ps, em: Date.now() }));
         return send(200, { ok: true, n: ps.length });
