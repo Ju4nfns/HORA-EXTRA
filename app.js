@@ -26,13 +26,13 @@ const sub=x=>esc([x.funcao,x.matricula,x.tipo].filter(Boolean).join(' · '));
 const aviso=t=>`<span style="color:var(--no);font-weight:600;font-size:14px">${t}</span>`;
 
 function renderTabs(){
-  const t=[['enc','Encarregado'],['imp','Importar'],['coord','Coordenação'],['res','Resumo'],['plan','Planejador']];
+  const t=[['enc','Encarregado'],['imp','Importar'],['coord','Coordenação'],['res','Resumo']];
   $('#tabs').innerHTML=t.map(([k,n])=>`<button class="tab" role="tab" data-tab="${k}" aria-selected="${tab===k}">${n}</button>`).join('')+(tok?'<span class="acts" style="margin-left:auto;align-self:center"><button class="btn2" data-sx="sair">Sair da coordenação</button></span>':'');
 }
 function render(){
   renderTabs();
   if(tab!=='enc'&&!tok)return renderLock();
-  ({coord:renderCoord,res:renderRes,plan:renderPlan,imp:renderImp}[tab]||renderEnc)();
+  ({coord:renderCoord,res:renderRes,imp:renderImp}[tab]||renderEnc)();
 }
 function renderLock(){$('#view').innerHTML='<div class="card" style="max-width:420px"><h2>Área da coordenação</h2><p class="mu">Digite a senha para continuar.</p><input type="password" id="pw" autocomplete="current-password" aria-label="Senha" placeholder="Senha" style="width:100%;margin-bottom:8px"><button class="btn" id="pwgo">Entrar</button></div>'}
 async function entrar(){
@@ -161,26 +161,24 @@ function renderCoord(){
   if(!shown)h+=`<div class="card mu">${L.length?'Nenhuma lista pendente.':'Nenhum encarregado enviou lista ainda.'}</div>`;
   $('#view').innerHTML=h;
 }
-function renderPlan(){
-  const todos=painel.todos||{},dias={};
-  Object.entries(todos).forEach(([id,p])=>{const d=diaDe(p);if(!d||(fdia&&d!==fdia))return;(dias[d]=dias[d]||[]).push([id,p])});
-  let h=`<div class="head"><h2 style="margin:0">Planejador</h2>${seletorDatas()}</div><p class="mu">Mostra quem foi colocado em mais de uma lista no mesmo dia. Para resolver, reprove a pessoa em uma das listas na aba Coordenação.</p>`;
-  const ordem=Object.keys(dias).sort().reverse();
-  if(!ordem.length){$('#view').innerHTML=h+'<div class="card mu">Nenhuma lista enviada ainda.</div>';return}
-  ordem.forEach(d=>{
+function htmlDup(){
+  const dias={};let n=0,o='';
+  Object.entries(painel.todos||{}).forEach(([id,p])=>{const d=diaDe(p);if(!d||(fdia&&d!==fdia))return;(dias[d]=dias[d]||[]).push([id,p])});
+  Object.keys(dias).sort().reverse().forEach(d=>{
     const g={};
     dias[d].forEach(([id,p])=>Object.entries(p.itens||{}).forEach(([k,i])=>{if(!i.vai)return;(g[dupKey(i)]=g[dupKey(i)]||{i,ls:[]}).ls.push({enc:p.encarregado||'',i,st:stOf(id,k,i)})}));
-    const dup=Object.values(g).filter(x=>x.ls.length>1).sort((a,b)=>a.i.nome.localeCompare(b.i.nome,'pt'));
-    h+=`<div class="card"><div class="head"><h2 style="margin:0">${fmt(d)}</h2><span class="mu">${Object.keys(g).length} pessoas · ${dias[d].length} listas · ${dup.length} duplicada(s)</span></div>`;
-    if(!dup.length)h+='<p style="color:var(--ok);font-weight:600;margin:6px 0 0">Nenhuma duplicidade neste dia.</p>';
+    const dup=Object.values(g).filter(x=>x.ls.length>1).sort((x,y)=>x.i.nome.localeCompare(y.i.nome,'pt'));
+    n+=dup.length;
+    o+=`<div class="card"><div class="head"><h3 style="margin:0">${fmt(d)}</h3><span class="mu">${Object.keys(g).length} pessoas · ${dias[d].length} listas · ${dup.length} duplicada(s)</span></div>`;
+    if(!dup.length)o+='<p style="color:var(--ok);font-weight:600;margin:6px 0 0">Nenhuma duplicidade neste dia.</p>';
     dup.forEach(x=>{
       const fx=x.ls.map(l=>faixa(l.i));let cruza=false;
-      for(let a=0;a<fx.length;a++)for(let b=a+1;b<fx.length;b++)if(fx[a][0]<fx[b][1]&&fx[b][0]<fx[a][1])cruza=true;
-      h+=`<div class="row"><div class="nm">${esc(x.i.nome)}<div class="when2">${sub(x.i)}</div></div><div style="flex:2 1 260px">${x.ls.map(l=>`<div>${esc(l.enc)} · ${esc(l.i.ini)} às ${esc(l.i.fim)} · ${esc(l.i.atividade||'')} ${badge(l.st)}</div>`).join('')}</div><span style="font-weight:600;color:${cruza?'var(--no)':'var(--pe)'}">${cruza?'Horários se sobrepõem':'Horários diferentes'}</span></div>`;
+      for(let u=0;u<fx.length;u++)for(let v=u+1;v<fx.length;v++)if(fx[u][0]<fx[v][1]&&fx[v][0]<fx[u][1])cruza=true;
+      o+=`<div class="row"><div class="nm">${esc(x.i.nome)}<div class="when2">${sub(x.i)}</div></div><div style="flex:2 1 260px">${x.ls.map(l=>`<div>${esc(l.enc)} · ${esc(l.i.ini)} às ${esc(l.i.fim)} · ${esc(l.i.atividade||'')} ${badge(l.st)}</div>`).join('')}</div><span style="font-weight:600;color:${cruza?'var(--no)':'var(--pe)'}">${cruza?'Horários se sobrepõem':'Horários diferentes'}</span></div>`;
     });
-    h+='</div>';
+    o+='</div>';
   });
-  $('#view').innerHTML=h;
+  return `<div class="head" style="margin-top:18px"><h2 style="margin:0">Duplicidades${n?' '+aviso('⚠ '+n+' pessoa(s)'):''}</h2></div><p class="mu" style="margin:0 0 10px">Mostra quem foi colocado em mais de uma lista no mesmo dia. Para resolver, reprove a pessoa em uma das listas na aba Coordenação.${n?' No quadro acima, quem está duplicado é contado uma vez em cada lista.':''}</p>`+(o||'<div class="card mu">Nenhuma lista enviada ainda.</div>');
 }
 async function decidir(id,keys,status){
   try{await api('decidir',{id,keys,status});await loadPainel();renderCoord()}catch(e){toast(e.message);render()}
@@ -205,7 +203,7 @@ function renderRes(){
   let h=`<div class="head"><h2 style="margin:0">Resumo por função</h2><label class="mu">Data <select id="fdia" style="width:auto;margin-left:6px"><option value="">Todas as datas</option>${dias.map(d=>`<option value="${esc(d)}"${d===fdia?' selected':''}>${fmt(d)}</option>`).join('')}</select></label></div>`;
   if(!linhas.length){$('#view').innerHTML=h+'<div class="card mu">Ninguém foi marcado como "Vai" ainda'+(fdia?' nesta data':'')+'.</div>';return}
   h+=`<div class="card" style="overflow-x:auto"><table class="pv" style="font-size:16px"><tr><th>Função</th><th>Vão</th><th>Aprovados</th><th>Aguardando</th><th>Reprovados</th></tr>${linhas.map(([f,r])=>`<tr><td>${esc(f)}</td><td><b>${r.vao}</b></td><td>${r.aprovado}</td><td>${r.pendente}</td><td>${r.reprovado}</td></tr>`).join('')}<tr><td><b>Total</b></td><td><b>${tot.vao}</b></td><td><b>${tot.aprovado}</b></td><td><b>${tot.pendente}</b></td><td><b>${tot.reprovado}</b></td></tr></table></div>`;
-  $('#view').innerHTML=h;
+  $('#view').innerHTML=h+htmlDup();
 }
 async function carregarExcelJS(){
   if(window.ExcelJS)return window.ExcelJS;
@@ -317,7 +315,7 @@ V.addEventListener('change',e=>{
   const t=e.target;
   if(t.id==='me'){me=t.value.trim();try{localStorage.setItem('he_nome',me)}catch(x){}dirty=false;lista=[];q={};minha=null;busca='';res=[];loadMinha().then(render).catch(er=>{toast(er.message);render()})}
   else if(t.id==='file'&&t.files[0])lerArquivo(t.files[0]);
-  else if(t.id==='fdia'){fdia=t.value;apagar=false;t.blur();tab==='res'?renderRes():tab==='plan'?renderPlan():renderCoord()}
+  else if(t.id==='fdia'){fdia=t.value;apagar=false;t.blur();tab==='res'?renderRes():renderCoord()}
   else if(t.id==='mn'||t.id==='mf'||t.id==='mm'||t.id==='mt'){mapN=+$('#mn').value;mapF=+$('#mf').value;mapM=+$('#mm').value;mapT=+$('#mt').value;renderImp()}
 });
 V.addEventListener('keydown',e=>{if(e.key==='Enter'&&e.target.id==='pw')entrar()});
