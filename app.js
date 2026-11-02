@@ -56,7 +56,7 @@ function renderEnc(){
   let h=`<div class="card"><label for="me"><b>Seu nome (encarregado)</b></label><input type="text" id="me" value="${esc(me)}" maxlength="80" placeholder="Digite seu nome completo" style="width:100%;margin-top:6px"></div>`;
   if(me.trim()){
     h+=`<div class="card" id="enc-form"><h2>Hora extra de ${esc(me.trim())} <span class="mu">(${lista.length})</span></h2>
-    <div class="bulk when"><b>Dia e horário da hora extra:</b><input type="date" data-f="dia" value="${esc(q.dia||'')}" aria-label="Dia"><input type="time" data-f="ini" value="${esc(q.ini||'')}" aria-label="Início"><span>até</span><input type="time" data-f="fim" value="${esc(q.fim||'')}" aria-label="Fim"><label style="flex:1 1 100%"><b>Atividade que será feita:</b><input type="text" data-f="atividade" value="${esc(q.atividade||'')}" maxlength="200" style="width:100%;margin-top:6px"></label></div>
+    <div class="bulk when"><b>Dia e horário da hora extra:</b><input type="date" data-f="dia" value="${esc(q.dia||'')}" aria-label="Dia"><input type="text" inputmode="numeric" maxlength="5" placeholder="18:00" autocomplete="off" data-f="ini" value="${esc(q.ini||'')}" aria-label="Hora de início" style="width:90px;text-align:center"><span>até</span><input type="text" inputmode="numeric" maxlength="5" placeholder="18:00" autocomplete="off" data-f="fim" value="${esc(q.fim||'')}" aria-label="Hora de fim" style="width:90px;text-align:center"><label style="flex:1 1 100%"><b>Atividade que será feita:</b><input type="text" data-f="atividade" value="${esc(q.atividade||'')}" maxlength="200" style="width:100%;margin-top:6px"></label></div>
     <div class="bulk" style="margin:10px 0"><label><b>Buscar pessoa pelo nome ou matrícula</b><input type="search" id="bq" value="${esc(busca)}" placeholder="Digite parte do nome" autocomplete="off" style="width:100%;margin-top:6px"></label><div id="bres"></div></div>`;
     lista.forEach((x,ix)=>{const it=minha&&minha.itens&&minha.itens[x.pid];h+=`<div class="row"><div class="nm">${esc(x.nome)}<div class="when2">${sub(x)}${x.extra?' · adicional':''}</div></div>${it?badge(it.status):''}<button class="btn2" data-rm="${ix}">Remover</button></div>`});
     if(!lista.length)h+='<p class="mu">Ninguém na lista ainda. Use a busca acima para adicionar.</p>';
@@ -78,11 +78,19 @@ async function buscaAgora(){
   try{res=(await api('buscar',{q:busca,dia:q.dia||'',enc:me})).res}catch(e){toast(e.message)}
   renderBusca();
 }
+function normHora(v){
+  const d=String(v).replace(/\D/g,'').slice(0,4);
+  if(!d)return '';
+  let h,m;
+  if(d.length<=2){h=d;m='00'}else if(d.length===3){h='0'+d[0];m=d.slice(1)}else{h=d.slice(0,2);m=d.slice(2)}
+  return(+h<=23&&+m<=59)?h.padStart(2,'0')+':'+m:'';
+}
 async function enviar(){
+  ['ini','fim'].forEach(f=>{const el=$('[data-f="'+f+'"]');if(el)q[f]=normHora(el.value)});
   const xn=$('#xn');if(xn&&xn.value.trim())return toast('Clique em "Adicionar" para incluir a pessoa digitada, ou apague o nome.');
   if(!me.trim())return toast('Digite seu nome (encarregado)');
   if(!lista.length)return toast('Adicione pelo menos uma pessoa');
-  if(!q.dia||!q.ini||!q.fim)return toast('Preencha o dia e o horário da hora extra');
+  if(!q.dia||!q.ini||!q.fim)return toast('Preencha o dia e o horário (exemplo: 18:00 até 22:00)');
   if(!(q.atividade||'').trim())return toast('Informe a atividade que será feita');
   try{
     const j=await api('enviar',{enc:me,dia:q.dia,ini:q.ini,fim:q.fim,atividade:q.atividade,pessoas:lista.filter(x=>!x.extra).map(x=>x.pid),extras:lista.filter(x=>x.extra)});
@@ -308,12 +316,14 @@ V.addEventListener('input',e=>{
   const t=e.target;
   if(t.id==='bq'){busca=t.value;clearTimeout(bt);bt=setTimeout(buscaAgora,250);return}
   const f=t.dataset.f;if(!f)return;
+  if(f==='ini'||f==='fim'){const d=t.value.replace(/\D/g,'').slice(0,4);t.value=d.length===4?d.slice(0,2)+':'+d.slice(2):d}
   q[f]=t.value;dirty=true;
   if(f==='dia'&&busca.trim().length>=2)buscaAgora();
 });
 V.addEventListener('change',e=>{
   const t=e.target;
-  if(t.id==='me'){me=t.value.trim();try{localStorage.setItem('he_nome',me)}catch(x){}dirty=false;lista=[];q={};minha=null;busca='';res=[];loadMinha().then(render).catch(er=>{toast(er.message);render()})}
+  if(t.dataset.f==='ini'||t.dataset.f==='fim'){const n=normHora(t.value);if(t.value&&!n)toast('Horário inválido. Digite assim: 18:00');t.value=n;q[t.dataset.f]=n;dirty=true}
+  else if(t.id==='me'){me=t.value.trim();try{localStorage.setItem('he_nome',me)}catch(x){}dirty=false;lista=[];q={};minha=null;busca='';res=[];loadMinha().then(render).catch(er=>{toast(er.message);render()})}
   else if(t.id==='file'&&t.files[0])lerArquivo(t.files[0]);
   else if(t.id==='fdia'){fdia=t.value;apagar=false;t.blur();tab==='res'?renderRes():renderCoord()}
   else if(t.id==='mn'||t.id==='mf'||t.id==='mm'||t.id==='mt'){mapN=+$('#mn').value;mapF=+$('#mf').value;mapM=+$('#mm').value;mapT=+$('#mt').value;renderImp()}
