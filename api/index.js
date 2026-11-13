@@ -97,7 +97,7 @@ module.exports = async (req, res) => {
         const pids = Array.isArray(b.pessoas) ? b.pessoas.slice(0, 300) : [], ex = Array.isArray(b.extras) ? b.extras.slice(0, 30) : [];
         if (!pids.length && !ex.length) return send(400, { erro: 'Adicione pelo menos uma pessoa.' });
         if (!/^\d{4}-\d{2}-\d{2}$/.test(b.dia || '') || !/^\d{2}:\d{2}$/.test(b.ini || '') || !/^\d{2}:\d{2}$/.test(b.fim || '')) return send(400, { erro: 'Preencha o dia e o horário da hora extra' });
-        const at = limpa(b.atividade, 200);
+        const at = String(b.atividade || '').replace(/\r/g, '').split('\n').map(l => l.trim().replace(/[ \t]+/g, ' ')).join('\n').replace(/\n{3,}/g, '\n\n').trim().slice(0, 2000);
         if (!at) return send(400, { erro: 'Informe a atividade que será feita' });
         const r = await roster(), mp = new Map(r.pessoas.map(p => [dupKey(p), p])), itens = {};
         for (const pid of pids) {
@@ -113,10 +113,28 @@ module.exports = async (req, res) => {
         }
         Object.values(itens).forEach(i => Object.assign(i, { vai: true, dia: b.dia, ini: b.ini, fim: b.fim, atividade: at }));
         const id = idLista(enc, b.dia), ps = await hash('he:pedidos'), outros = outrosDoDia(ps, b.dia, id);
-        await R('HSET', 'he:pedidos', id, JSON.stringify({ ek: slug(enc), encarregado: enc, dia: b.dia, itens, enviadoEm: Date.now() }));
+        const doc = JSON.stringify({ ek: slug(enc), encarregado: enc, dia: b.dia, itens, enviadoEm: Date.now() });
+        if (doc.length > 900000) return send(400, { erro: 'Lista grande demais: reduza o texto da atividade ou o número de pessoas.' });
+        await R('HSET', 'he:pedidos', id, doc);
         const duplicados = [];
         Object.values(itens).forEach(i => (outros[dupKey(i)] || []).forEach(o => duplicados.push({ nome: i.nome, enc: o.enc, ini: o.ini, fim: o.fim })));
         return send(200, { ok: true, duplicados });
+      }
+      case 'minhas': {
+        const enc = limpa(b.enc, 80);
+        if (!enc) return send(200, { listas: [] });
+        const ek = slug(enc);
+        const [ps, ds] = await Promise.all([hash('he:pedidos'), hash('he:decisoes')]);
+        const listas = Object.entries(ps).filter(([, p]) => p && p.ek === ek).map(([id, p]) => {
+          const dec = (ds[id] || {}).itens || {};
+          const itens = Object.entries(p.itens || {}).filter(([, i]) => i.vai).map(([k, i]) => {
+            const x = dec[k];
+            return { nome: i.nome, funcao: i.funcao || '', matricula: i.matricula || '', tipo: i.tipo || '', extra: !!i.extra, status: x && x.sig === sig(i) ? x.status : 'pendente' };
+          });
+          const f = Object.values(p.itens || {}).find(i => i.vai) || {};
+          return { id, encarregado: p.encarregado, dia: diaDe(p), ini: f.ini || '', fim: f.fim || '', atividade: f.atividade || '', enviadoEm: p.enviadoEm || 0, itens };
+        }).filter(l => l.itens.length).sort((a, c) => (c.dia || '').localeCompare(a.dia || '') || c.enviadoEm - a.enviadoEm);
+        return send(200, { listas });
       }
       case 'painel': {
         if (!auth()) return nega();
