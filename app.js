@@ -9,7 +9,7 @@ const dupKey=i=>i.matricula?'m'+slug(i.matricula):'n'+slug(i.nome);
 const minu=h=>{const [a,b]=String(h||'0:0').split(':');return(+a)*60+(+b)};
 const faixa=i=>{const a=minu(i.ini);let f=minu(i.fim);if(f<=a)f+=1440;return[a,f]};
 let tab='enc',tok='',painel={todos:{},decisoes:{},pessoas:0};
-let me='',minha=null,lista=[],q={},dirty=false,res=[],busca='',bt;
+let me='',minha=null,mine=[],abertos={},lista=[],q={},dirty=false,res=[],busca='',bt;
 let filtro='pend',fdia='',apagar=false,pending=null,mapN=0,mapF=-1,mapM=-1,mapT=-1;
 try{me=localStorage.getItem('he_nome')||'';tok=sessionStorage.getItem('he_t')||''}catch(e){}
 let tt;function toast(m){const t=$('#toast');t.textContent=m;t.style.display='block';clearTimeout(tt);tt=setTimeout(()=>t.style.display='none',7000)}
@@ -26,13 +26,13 @@ const sub=x=>esc([x.funcao,x.matricula,x.tipo].filter(Boolean).join(' · '));
 const aviso=t=>`<span style="color:var(--no);font-weight:600;font-size:14px">${t}</span>`;
 
 function renderTabs(){
-  const t=[['enc','Encarregado'],['imp','Importar'],['coord','Coordenação'],['res','Resumo']];
+  const t=[['enc','Encarregado'],['mine','Minhas listas'],['imp','Importar'],['coord','Coordenação'],['res','Resumo']];
   $('#tabs').innerHTML=t.map(([k,n])=>`<button class="tab" role="tab" data-tab="${k}" aria-selected="${tab===k}">${n}</button>`).join('')+(tok?'<span class="acts" style="margin-left:auto;align-self:center"><button class="btn2" data-sx="sair">Sair da coordenação</button></span>':'');
 }
 function render(){
   renderTabs();
-  if(tab!=='enc'&&!tok)return renderLock();
-  ({coord:renderCoord,res:renderRes,imp:renderImp}[tab]||renderEnc)();
+  if(tab!=='enc'&&tab!=='mine'&&!tok)return renderLock();
+  ({coord:renderCoord,res:renderRes,imp:renderImp,mine:renderMine}[tab]||renderEnc)();
 }
 function renderLock(){$('#view').innerHTML='<div class="card" style="max-width:420px"><h2>Área da coordenação</h2><p class="mu">Digite a senha para continuar.</p><input type="password" id="pw" autocomplete="current-password" aria-label="Senha" placeholder="Senha" style="width:100%;margin-bottom:8px"><button class="btn" id="pwgo">Entrar</button></div>'}
 async function entrar(){
@@ -56,7 +56,7 @@ function renderEnc(){
   let h=`<div class="card"><label for="me"><b>Seu nome (encarregado)</b></label><input type="text" id="me" value="${esc(me)}" maxlength="80" placeholder="Digite seu nome completo" style="width:100%;margin-top:6px"></div>`;
   if(me.trim()){
     h+=`<div class="card" id="enc-form"><h2>Hora extra de ${esc(me.trim())} <span class="mu">(${lista.length})</span></h2>
-    <div class="bulk when"><b>Dia e horário da hora extra:</b><input type="date" data-f="dia" value="${esc(q.dia||'')}" aria-label="Dia"><input type="text" inputmode="numeric" maxlength="5" placeholder="18:00" autocomplete="off" data-f="ini" value="${esc(q.ini||'')}" aria-label="Hora de início" style="width:90px;text-align:center"><span>até</span><input type="text" inputmode="numeric" maxlength="5" placeholder="18:00" autocomplete="off" data-f="fim" value="${esc(q.fim||'')}" aria-label="Hora de fim" style="width:90px;text-align:center"><label style="flex:1 1 100%"><b>Atividade que será feita:</b><input type="text" data-f="atividade" value="${esc(q.atividade||'')}" maxlength="200" style="width:100%;margin-top:6px"></label></div>
+    <div class="bulk when"><b>Dia e horário da hora extra:</b><input type="date" data-f="dia" value="${esc(q.dia||'')}" aria-label="Dia"><input type="text" inputmode="numeric" maxlength="5" placeholder="18:00" autocomplete="off" data-f="ini" value="${esc(q.ini||'')}" aria-label="Hora de início" style="width:90px;text-align:center"><span>até</span><input type="text" inputmode="numeric" maxlength="5" placeholder="18:00" autocomplete="off" data-f="fim" value="${esc(q.fim||'')}" aria-label="Hora de fim" style="width:90px;text-align:center"><label style="flex:1 1 100%"><b>Atividade que será feita:</b><textarea data-f="atividade" rows="3" style="width:100%;margin-top:6px;font:inherit;color:var(--ink);background:var(--bg);border:1px solid var(--ln);border-radius:6px;padding:8px 10px;resize:vertical">${esc(q.atividade||'')}</textarea></label></div>
     <div class="bulk" style="margin:10px 0"><label><b>Buscar pessoa pelo nome ou matrícula</b><input type="search" id="bq" value="${esc(busca)}" placeholder="Digite parte do nome" autocomplete="off" style="width:100%;margin-top:6px"></label><div id="bres"></div></div>`;
     lista.forEach((x,ix)=>{const it=minha&&minha.itens&&minha.itens[x.pid];h+=`<div class="row"><div class="nm">${esc(x.nome)}<div class="when2">${sub(x)}${x.extra?' · adicional':''}</div></div>${it?badge(it.status):''}<button class="btn2" data-rm="${ix}">Remover</button></div>`});
     if(!lista.length)h+='<p class="mu">Ninguém na lista ainda. Use a busca acima para adicionar.</p>';
@@ -84,6 +84,29 @@ function normHora(v){
   let h,m;
   if(d.length<=2){h=d;m='00'}else if(d.length===3){h='0'+d[0];m=d.slice(1)}else{h=d.slice(0,2);m=d.slice(2)}
   return(+h<=23&&+m<=59)?h.padStart(2,'0')+':'+m:'';
+}
+async function loadMine(){if(!me.trim()){mine=[];return}mine=(await api('minhas',{enc:me})).listas}
+function resumoLista(l){
+  const c={aprovado:0,reprovado:0,pendente:0};l.itens.forEach(i=>c[i.status]++);
+  const n=l.itens.length;
+  if(c.aprovado===n)return{c,n,st:'aprovado',rot:'Aprovada'};
+  if(c.reprovado===n)return{c,n,st:'reprovado',rot:'Reprovada'};
+  if(c.pendente===n)return{c,n,st:'pendente',rot:'Aguardando aprovação'};
+  return{c,n,st:'pendente',rot:'Parcial'};
+}
+function renderMine(){
+  let h=`<div class="card"><label for="me"><b>Seu nome (encarregado)</b></label><input type="text" id="me" value="${esc(me)}" maxlength="80" placeholder="Digite seu nome completo" style="width:100%;margin-top:6px"></div>`;
+  if(!me.trim())h+='<p class="mu">Digite seu nome para ver o andamento das suas listas.</p>';
+  else if(!mine.length)h+='<div class="card mu">Nenhuma lista enviada com este nome ainda.</div>';
+  mine.forEach(l=>{
+    const r=resumoLista(l);
+    h+=`<div class="card"><div class="head"><h2 style="margin:0">Equipe de ${esc(l.encarregado||me)} <span class="mu">· ${fmt(l.dia)}</span></h2><span class="badge ${r.st}">${r.rot}</span></div>
+    <div class="when2" style="margin-bottom:4px">${esc(l.ini)} às ${esc(l.fim)} · ${r.n} pessoas</div>
+    ${l.atividade?'<div style="margin:4px 0;white-space:pre-wrap"><b>Atividade:</b> '+esc(l.atividade)+'</div>':''}
+    <div class="mu">${r.c.aprovado} aprovada(s) · ${r.c.reprovado} reprovada(s) · ${r.c.pendente} aguardando</div>
+    <details data-l="${esc(l.id)}"${abertos[l.id]?' open':''} style="margin-top:6px"><summary class="mu" style="cursor:pointer">Ver pessoas</summary>${l.itens.map(i=>`<div class="row"><div class="nm">${esc(i.nome)}<div class="when2">${sub(i)}${i.extra?' · adicional':''}</div></div>${badge(i.status)}</div>`).join('')}</details></div>`;
+  });
+  $('#view').innerHTML=h;
 }
 async function enviar(){
   ['ini','fim'].forEach(f=>{const el=$('[data-f="'+f+'"]');if(el)q[f]=normHora(el.value)});
@@ -162,7 +185,7 @@ function renderCoord(){
     if(filtro==='pend'&&!pend.length)return;
     shown++;
     h+=`<div class="card" data-t="${esc(t.k)}"><div class="head"><h2 style="margin:0">${esc(t.nome)} <span class="mu">· ${fmt(t.dia)}</span></h2><div class="acts"><button class="btn" data-all="aprovado">Aprovar pendentes</button><button class="btn2" data-all="reprovado">Reprovar pendentes</button></div></div>
-    ${all.length&&all[0][1].atividade?'<div style="margin:4px 0"><b>Atividade:</b> '+esc(all[0][1].atividade)+'</div>':''}<div class="mu">${all.length} pessoas · ${esc(all.length?all[0][1].ini+' às '+all[0][1].fim:'')} · ${pend.length} aguardando</div>`;
+    ${all.length&&all[0][1].atividade?'<div style="margin:4px 0;white-space:pre-wrap"><b>Atividade:</b> '+esc(all[0][1].atividade)+'</div>':''}<div class="mu">${all.length} pessoas · ${esc(all.length?all[0][1].ini+' às '+all[0][1].fim:'')} · ${pend.length} aguardando</div>`;
     rows.forEach(([k,i,s])=>{h+=`<div class="row" data-k="${esc(k)}"><div class="nm">${esc(i.nome)}<span class="mu" style="font-weight:400"> ${sub(i)?'· '+sub(i):''}${i.extra?' · adicional':''}</span>${dm[t.dia+'|'+dupKey(i)]>1?' '+aviso('⚠ duplicado'):''}</div>${badge(s)}<div class="acts"><button class="btn2 ok${s==='aprovado'?' on':''}" data-d="aprovado">Aprovar</button><button class="btn2 no${s==='reprovado'?' on':''}" data-d="reprovado">Reprovar</button></div></div>`});
     h+='</div>';
   });
@@ -323,20 +346,21 @@ V.addEventListener('input',e=>{
 V.addEventListener('change',e=>{
   const t=e.target;
   if(t.dataset.f==='ini'||t.dataset.f==='fim'){const n=normHora(t.value);if(t.value&&!n)toast('Horário inválido. Digite assim: 18:00');t.value=n;q[t.dataset.f]=n;dirty=true}
-  else if(t.id==='me'){me=t.value.trim();try{localStorage.setItem('he_nome',me)}catch(x){}dirty=false;lista=[];q={};minha=null;busca='';res=[];loadMinha().then(render).catch(er=>{toast(er.message);render()})}
+  else if(t.id==='me'){me=t.value.trim();try{localStorage.setItem('he_nome',me)}catch(x){}dirty=false;lista=[];q={};minha=null;busca='';res=[];Promise.all([loadMinha(),loadMine()]).then(render).catch(er=>{toast(er.message);render()})}
   else if(t.id==='file'&&t.files[0])lerArquivo(t.files[0]);
   else if(t.id==='fdia'){fdia=t.value;apagar=false;t.blur();tab==='res'?renderRes():renderCoord()}
   else if(t.id==='mn'||t.id==='mf'||t.id==='mm'||t.id==='mt'){mapN=+$('#mn').value;mapF=+$('#mf').value;mapM=+$('#mm').value;mapT=+$('#mt').value;renderImp()}
 });
+V.addEventListener('toggle',e=>{const d=e.target;if(d&&d.dataset&&d.dataset.l)abertos[d.dataset.l]=d.open},true);
 V.addEventListener('keydown',e=>{if(e.key==='Enter'&&e.target.id==='pw')entrar()});
 $('#tabs').addEventListener('click',async e=>{
   const b=e.target.closest('[data-tab]');
-  if(b){tab=b.dataset.tab;render();if(tab==='enc')loadMinha().then(render).catch(()=>{});else if(tok){await loadPainel();render()}return}
+  if(b){tab=b.dataset.tab;render();if(tab==='enc')loadMinha().then(render).catch(()=>{});else if(tab==='mine')loadMine().then(render).catch(()=>{});else if(tok){await loadPainel();render()}return}
   if(e.target.closest('[data-sx]')){tok='';try{sessionStorage.removeItem('he_t')}catch(z){}render()}
 });
 setInterval(async()=>{
   if($d.hidden)return;
-  const a=$d.activeElement;if(a&&V.contains(a)&&/INPUT|SELECT/.test(a.tagName))return;
-  try{if(tab==='enc'){await loadMinha()}else if(tok){await loadPainel()}else return;render()}catch(e){}
+  const a=$d.activeElement;if(a&&V.contains(a)&&/INPUT|SELECT|TEXTAREA/.test(a.tagName))return;
+  try{if(tab==='enc'){await loadMinha()}else if(tab==='mine'){await loadMine()}else if(tok){await loadPainel()}else return;render()}catch(e){}
 },10000);
 (async()=>{render();try{await loadMinha()}catch(e){toast(e.message)}render();if(tok){await loadPainel();render()}})();
