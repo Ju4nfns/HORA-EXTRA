@@ -38,6 +38,7 @@ function tokenOk(t) {
 }
 async function hash(k) { const a = (await R('HGETALL', k)) || [], o = {}; for (let i = 0; i < a.length; i += 2) o[a[i]] = parse(a[i + 1]); return o; }
 async function roster() { return parse(await R('GET', 'he:roster')) || { pessoas: [] }; }
+async function nomesDe(k) { return (parse(await R('GET', k)) || {}).nomes || []; }
 // Pessoas já listadas no mesmo dia por OUTRAS listas: { dupKey: [{enc, ini, fim}] }
 function outrosDoDia(ps, dia, idAtual) {
   const m = {};
@@ -67,6 +68,21 @@ module.exports = async (req, res) => {
         if (x.length !== y.length || !crypto.timingSafeEqual(x, y)) { await new Promise(r => setTimeout(r, 800)); return send(401, { erro: 'Senha incorreta.' }); }
         return send(200, { token: novoToken() });
       }
+      case 'listas': {
+        const [e, s] = await Promise.all([nomesDe('he:encarregados'), nomesDe('he:supervisores')]);
+        return send(200, { encarregados: e, supervisores: s });
+      }
+      case 'importarnomes': {
+        if (!auth()) return nega();
+        const chave = b.tipo === 'encarregados' ? 'he:encarregados' : b.tipo === 'supervisores' ? 'he:supervisores' : null;
+        if (!chave) return send(400, { erro: 'Tipo de lista inválido.' });
+        const m = new Map();
+        (Array.isArray(b.nomes) ? b.nomes : []).slice(0, 3000).forEach(n => { const x = limpa(n, 120); if (x && !m.has(slug(x))) m.set(slug(x), x); });
+        const nomes = [...m.values()].sort((x, y) => x.localeCompare(y, 'pt'));
+        if (!nomes.length) return send(400, { erro: 'Nenhum nome válido para importar.' });
+        await R('SET', chave, JSON.stringify({ nomes, em: Date.now() }));
+        return send(200, { ok: true, n: nomes.length });
+      }
       case 'buscar': {
         const termos = norm(b.q).split(/\s+/).filter(Boolean);
         if (norm(b.q).trim().length < 2) return send(200, { res: [] });
@@ -93,12 +109,18 @@ module.exports = async (req, res) => {
       }
       case 'enviar': {
         const enc = limpa(b.enc, 80);
-        if (!enc) return send(400, { erro: 'Digite seu nome (encarregado).' });
+        if (!enc) return send(400, { erro: 'Selecione o encarregado responsável.' });
         const pids = Array.isArray(b.pessoas) ? b.pessoas.slice(0, 300) : [], ex = Array.isArray(b.extras) ? b.extras.slice(0, 30) : [];
         if (!pids.length && !ex.length) return send(400, { erro: 'Adicione pelo menos uma pessoa.' });
         if (!/^\d{4}-\d{2}-\d{2}$/.test(b.dia || '') || !/^\d{2}:\d{2}$/.test(b.ini || '') || !/^\d{2}:\d{2}$/.test(b.fim || '')) return send(400, { erro: 'Preencha o dia e o horário da hora extra' });
         const at = String(b.atividade || '').replace(/\r/g, '').split('\n').map(l => l.trim().replace(/[ \t]+/g, ' ')).join('\n').replace(/\n{3,}/g, '\n\n').trim().slice(0, 2000);
         if (!at) return send(400, { erro: 'Informe a atividade que será feita' });
+        // Encarregado e supervisor: obrigatórios quando as listas foram importadas (usa o nome oficial da lista).
+        const [ne, ns] = await Promise.all([nomesDe('he:encarregados'), nomesDe('he:supervisores')]);
+        let encF = enc, supF = '';
+        if (ne.length) { const f = ne.find(n => slug(n) === slug(enc)); if (!f) return send(400, { erro: 'Selecione o encarregado responsável.' }); encF = f; }
+        if (ns.length) { const f = ns.find(n => slug(n) === slug(b.sup || '')); if (!f) return send(400, { erro: 'Selecione o supervisor responsável.' }); supF = f; }
+        else supF = limpa(b.sup, 120);
         const r = await roster(), mp = new Map(r.pessoas.map(p => [dupKey(p), p])), itens = {};
         for (const pid of pids) {
           const p = mp.get(pid);
@@ -112,8 +134,8 @@ module.exports = async (req, res) => {
           itens['x-' + slug(nome)] = it;
         }
         Object.values(itens).forEach(i => Object.assign(i, { vai: true, dia: b.dia, ini: b.ini, fim: b.fim, atividade: at }));
-        const id = idLista(enc, b.dia), ps = await hash('he:pedidos'), outros = outrosDoDia(ps, b.dia, id);
-        const doc = JSON.stringify({ ek: slug(enc), encarregado: enc, dia: b.dia, itens, enviadoEm: Date.now() });
+        const id = idLista(encF, b.dia), ps = await hash('he:pedidos'), outros = outrosDoDia(ps, b.dia, id);
+        const doc = JSON.stringify({ ek: slug(encF), encarregado: encF, sup: supF, dia: b.dia, itens, enviadoEm: Date.now() });
         if (doc.length > 900000) return send(400, { erro: 'Lista grande demais: reduza o texto da atividade ou o número de pessoas.' });
         await R('HSET', 'he:pedidos', id, doc);
         const duplicados = [];
@@ -132,14 +154,15 @@ module.exports = async (req, res) => {
             return { nome: i.nome, funcao: i.funcao || '', matricula: i.matricula || '', tipo: i.tipo || '', extra: !!i.extra, status: x && x.sig === sig(i) ? x.status : 'pendente' };
           });
           const f = Object.values(p.itens || {}).find(i => i.vai) || {};
-          return { id, encarregado: p.encarregado, dia: diaDe(p), ini: f.ini || '', fim: f.fim || '', atividade: f.atividade || '', enviadoEm: p.enviadoEm || 0, itens };
+          return { id, encarregado: p.encarregado, sup: p.sup || '', dia: diaDe(p), ini: f.ini || '', fim: f.fim || '', atividade: f.atividade || '', enviadoEm: p.enviadoEm || 0, itens };
         }).filter(l => l.itens.length).sort((a, c) => (c.dia || '').localeCompare(a.dia || '') || c.enviadoEm - a.enviadoEm);
         return send(200, { listas });
       }
       case 'painel': {
         if (!auth()) return nega();
         const [todos, decisoes, r] = await Promise.all([hash('he:pedidos'), hash('he:decisoes'), roster()]);
-        return send(200, { todos, decisoes, pessoas: r.pessoas.length });
+        const [ne, ns] = await Promise.all([nomesDe('he:encarregados'), nomesDe('he:supervisores')]);
+        return send(200, { todos, decisoes, pessoas: r.pessoas.length, nEnc: ne.length, nSup: ns.length });
       }
       case 'importar': {
         if (!auth()) return nega();
