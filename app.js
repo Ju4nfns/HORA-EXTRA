@@ -10,8 +10,8 @@ const minu=h=>{const [a,b]=String(h||'0:0').split(':');return(+a)*60+(+b)};
 const faixa=i=>{const a=minu(i.ini);let f=minu(i.fim);if(f<=a)f+=1440;return[a,f]};
 let tab='enc',tok='',painel={todos:{},decisoes:{},pessoas:0};
 let me='',minha=null,mine=[],abertos={},lista=[],q={},dirty=false,res=[],busca='',bt;
-let filtro='pend',fdia='',apagar=false,pending=null,mapN=0,mapF=-1,mapM=-1,mapT=-1;
-try{me=localStorage.getItem('he_nome')||'';tok=sessionStorage.getItem('he_t')||''}catch(e){}
+let filtro='pend',fdia='',fSup=[],fEnc=[],fHor=[],fOpen={},sup='',opcoes={encarregados:[],supervisores:[]},impTipo='func',pendN=null,volta='enc',apagar=false,pending=null,mapN=0,mapF=-1,mapM=-1,mapT=-1;
+try{me=localStorage.getItem('he_nome')||'';sup=localStorage.getItem('he_sup')||'';tok=sessionStorage.getItem('he_t')||''}catch(e){}
 let tt;function toast(m){const t=$('#toast');t.textContent=m;t.style.display='block';clearTimeout(tt);tt=setTimeout(()=>t.style.display='none',7000)}
 async function api(a,d={}){
   const r=await fetch('/api',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({a,t:tok,...d})});
@@ -26,7 +26,7 @@ const sub=x=>esc([x.funcao,x.matricula,x.tipo].filter(Boolean).join(' · '));
 const aviso=t=>`<span style="color:var(--no);font-weight:600;font-size:14px">${t}</span>`;
 
 function renderTabs(){
-  const t=[['enc','Encarregado'],['mine','Minhas listas'],['imp','Importar'],['coord','Coordenação'],['res','Resumo']];
+  const t=[['enc','Encarregado'],['mine','Minhas listas'],['coord','Coordenação'],['res','Resumo']];
   $('#tabs').innerHTML=t.map(([k,n])=>`<button class="tab" role="tab" data-tab="${k}" aria-selected="${tab===k}">${n}</button>`).join('')+(tok?'<span class="acts" style="margin-left:auto;align-self:center"><button class="btn2" data-sx="sair">Sair da coordenação</button></span>':'');
 }
 function render(){
@@ -46,6 +46,7 @@ async function loadMinha(){
   minha=(await api('minha',{enc:me})).lista;
   if(!dirty){
     lista=[];q={};
+    if(minha&&minha.sup){sup=minha.sup;try{localStorage.setItem('he_sup',sup)}catch(e){}}
     if(minha){
       Object.entries(minha.itens||{}).forEach(([k,i])=>lista.push({pid:k,nome:i.nome,funcao:i.funcao||'',matricula:i.matricula||'',tipo:i.tipo||'',extra:!!i.extra}));
       const f=Object.values(minha.itens||{})[0];if(f)q={dia:f.dia,ini:f.ini,fim:f.fim,atividade:f.atividade||''};
@@ -53,8 +54,8 @@ async function loadMinha(){
   }
 }
 function renderEnc(){
-  let h=`<div class="card"><label for="me"><b>Seu nome (encarregado)</b></label><input type="text" id="me" value="${esc(me)}" maxlength="80" placeholder="Digite seu nome completo" style="width:100%;margin-top:6px"></div>`;
-  if(me.trim()){
+  let h=cardEnc(true);
+  if(meOk()){
     h+=`<div class="card" id="enc-form"><h2>Hora extra de ${esc(me.trim())} <span class="mu">(${lista.length})</span></h2>
     <div class="bulk when"><b>Dia e horário da hora extra:</b><input type="date" data-f="dia" value="${esc(q.dia||'')}" aria-label="Dia"><input type="text" inputmode="numeric" maxlength="5" placeholder="18:00" autocomplete="off" data-f="ini" value="${esc(q.ini||'')}" aria-label="Hora de início" style="width:90px;text-align:center"><span>até</span><input type="text" inputmode="numeric" maxlength="5" placeholder="18:00" autocomplete="off" data-f="fim" value="${esc(q.fim||'')}" aria-label="Hora de fim" style="width:90px;text-align:center"><label style="flex:1 1 100%"><b>Atividade que será feita:</b><textarea data-f="atividade" rows="3" style="width:100%;margin-top:6px;font:inherit;color:var(--ink);background:var(--bg);border:1px solid var(--ln);border-radius:6px;padding:8px 10px;resize:vertical">${esc(q.atividade||'')}</textarea></label></div>
     <div class="bulk" style="margin:10px 0"><label><b>Buscar pessoa pelo nome ou matrícula</b><input type="search" id="bq" value="${esc(busca)}" placeholder="Digite parte do nome" autocomplete="off" style="width:100%;margin-top:6px"></label><div id="bres"></div></div>`;
@@ -95,13 +96,13 @@ function resumoLista(l){
   return{c,n,st:'pendente',rot:'Parcial'};
 }
 function renderMine(){
-  let h=`<div class="card"><label for="me"><b>Seu nome (encarregado)</b></label><input type="text" id="me" value="${esc(me)}" maxlength="80" placeholder="Digite seu nome completo" style="width:100%;margin-top:6px"></div>`;
-  if(!me.trim())h+='<p class="mu">Digite seu nome para ver o andamento das suas listas.</p>';
+  let h=cardEnc(false);
+  if(!me.trim())h+='<p class="mu">Selecione seu nome para ver o andamento das suas listas.</p>';
   else if(!mine.length)h+='<div class="card mu">Nenhuma lista enviada com este nome ainda.</div>';
   mine.forEach(l=>{
     const r=resumoLista(l);
     h+=`<div class="card"><div class="head"><h2 style="margin:0">Equipe de ${esc(l.encarregado||me)} <span class="mu">· ${fmt(l.dia)}</span></h2><span class="badge ${r.st}">${r.rot}</span></div>
-    <div class="when2" style="margin-bottom:4px">${esc(l.ini)} às ${esc(l.fim)} · ${r.n} pessoas</div>
+    <div class="when2" style="margin-bottom:4px">${l.sup?'Supervisor: '+esc(l.sup)+' · ':''}${esc(l.ini)} às ${esc(l.fim)} · ${r.n} pessoas</div>
     ${l.atividade?'<div style="margin:4px 0;white-space:pre-wrap"><b>Atividade:</b> '+esc(l.atividade)+'</div>':''}
     <div class="mu">${r.c.aprovado} aprovada(s) · ${r.c.reprovado} reprovada(s) · ${r.c.pendente} aguardando</div>
     <details data-l="${esc(l.id)}"${abertos[l.id]?' open':''} style="margin-top:6px"><summary class="mu" style="cursor:pointer">Ver pessoas</summary>${l.itens.map(i=>`<div class="row"><div class="nm">${esc(i.nome)}<div class="when2">${sub(i)}${i.extra?' · adicional':''}</div></div>${badge(i.status)}</div>`).join('')}</details></div>`;
@@ -111,12 +112,13 @@ function renderMine(){
 async function enviar(){
   ['ini','fim'].forEach(f=>{const el=$('[data-f="'+f+'"]');if(el)q[f]=normHora(el.value)});
   const xn=$('#xn');if(xn&&xn.value.trim())return toast('Clique em "Adicionar" para incluir a pessoa digitada, ou apague o nome.');
-  if(!me.trim())return toast('Digite seu nome (encarregado)');
+  if(!me.trim()||(opcoes.encarregados.length&&!opcoes.encarregados.includes(me)))return toast('Selecione o encarregado responsável');
+  if(opcoes.supervisores.length&&!sup)return toast('Selecione o supervisor responsável');
   if(!lista.length)return toast('Adicione pelo menos uma pessoa');
   if(!q.dia||!q.ini||!q.fim)return toast('Preencha o dia e o horário (exemplo: 18:00 até 22:00)');
   if(!(q.atividade||'').trim())return toast('Informe a atividade que será feita');
   try{
-    const j=await api('enviar',{enc:me,dia:q.dia,ini:q.ini,fim:q.fim,atividade:q.atividade,pessoas:lista.filter(x=>!x.extra).map(x=>x.pid),extras:lista.filter(x=>x.extra)});
+    const j=await api('enviar',{enc:me,sup,dia:q.dia,ini:q.ini,fim:q.fim,atividade:q.atividade,pessoas:lista.filter(x=>!x.extra).map(x=>x.pid),extras:lista.filter(x=>x.extra)});
     dirty=false;const d=j.duplicados||[];
     toast(d.length?'Lista enviada. Atenção: '+d.slice(0,3).map(x=>x.nome+' já está na lista de '+x.enc).join('; ')+(d.length>3?'…':''):'Lista enviada para aprovação');
     await loadMinha();render();
@@ -133,7 +135,7 @@ function pares(){
   });
   return{out:[...m.values()],lidas:pending.length-1};
 }
-function renderImp(){
+function htmlImpFunc(){
   let h=`<div class="card"><h2>Efetivo</h2><p class="mu">${painel.pessoas?painel.pessoas+' pessoas importadas.':'Nenhum efetivo importado ainda.'} Envie a planilha (.xlsx de preferência) com uma lista de pessoas: nome, função, matrícula e tipo (MOD/MOI). A primeira linha deve ser o cabeçalho. Importar de novo substitui o efetivo.</p><input type="file" id="file" accept=".xlsx,.xls,.csv" aria-label="Planilha do efetivo">`;
   if(pending){
     const hd=pending[0].map(String),opt=i=>hd.map((x,j)=>`<option value="${j}"${j===i?' selected':''}>${esc(x||'Coluna '+(j+1))}</option>`).join('');
@@ -143,7 +145,7 @@ function renderImp(){
     <table class="pv"><tr><th>Colaborador</th><th>Função</th><th>Matrícula</th><th>Tipo</th></tr>${P.out.slice(0,6).map(x=>`<tr><td>${esc(x.nome)}</td><td>${esc(x.funcao)}</td><td>${esc(x.matricula)}</td><td>${esc(x.tipo)}</td></tr>`).join('')}</table>
     <div class="acts"><button class="btn" id="imp"${n?'':' disabled'}>Confirmar importação</button><button class="btn2" id="cancel">Cancelar</button></div>`;
   }
-  $('#view').innerHTML=h+'</div>';
+  return h+'</div>';
 }
 function lerArquivo(f){
   const r=new FileReader();
@@ -173,10 +175,12 @@ function seletorDatas(){
 }
 function renderCoord(){
   const todos=painel.todos||{},dm=dupMapa();
-  const L=Object.entries(todos).map(([id,p])=>({k:id,p,dia:diaDe(p),nome:p.encarregado||id})).filter(x=>!fdia||x.dia===fdia).sort((a,b)=>(b.dia||'').localeCompare(a.dia||'')||a.nome.localeCompare(b.nome,'pt'));
+  const BASE=Object.entries(todos).map(([id,p])=>({k:id,p,dia:diaDe(p),nome:p.encarregado||id,sup:p.sup||'',hor:horDe(p)})).filter(x=>!fdia||x.dia===fdia).sort((a,b)=>(b.dia||'').localeCompare(a.dia||'')||a.nome.localeCompare(b.nome,'pt'));
+  podaF(BASE);const L=BASE.filter(passaF);
   let h=`<div class="head"><h2 style="margin:0">Listas para aprovar</h2><div class="acts"><button class="btn2 ${filtro==='pend'?'on':''}" data-fil="pend" aria-pressed="${filtro==='pend'}">Pendentes</button><button class="btn2 ${filtro==='todas'?'on':''}" data-fil="todas" aria-pressed="${filtro==='todas'}">Todas</button><button class="btn2" id="csv">Baixar aprovados (Excel)</button></div></div>`;
   h+=`<div class="head">${seletorDatas()}${Object.keys(todos).length?`<button class="btn2" id="apg">Apagar ${fdia?'listas desta data':'todas as listas'}</button>`:''}</div>`;
-  if(apagar)h+=`<div class="card"><b>Apagar ${L.length} lista(s) ${fdia?'de '+fmt(fdia):'(todas as datas)'}?</b> Isso também remove as aprovações e não pode ser desfeito. Baixe o Excel antes, se precisar.<div class="acts" style="margin-top:8px"><button class="btn" id="apgok">Sim, apagar</button><button class="btn2" id="apgx">Cancelar</button></div></div>`;
+  h+=htmlFiltros(BASE);
+  if(apagar)h+=`<div class="card"><b>Apagar ${BASE.length} lista(s) ${fdia?'de '+fmt(fdia):'(todas as datas)'}?</b> Isso também remove as aprovações e não pode ser desfeito. Baixe o Excel antes, se precisar.<div class="acts" style="margin-top:8px"><button class="btn" id="apgok">Sim, apagar</button><button class="btn2" id="apgx">Cancelar</button></div></div>`;
   let shown=0;
   L.forEach(t=>{
     const p=t.p,all=Object.entries(p.itens||{}).filter(([,i])=>i.vai).sort((a,b)=>a[1].nome.localeCompare(b[1].nome,'pt'));
@@ -185,7 +189,7 @@ function renderCoord(){
     if(filtro==='pend'&&!pend.length)return;
     shown++;
     h+=`<div class="card" data-t="${esc(t.k)}"><div class="head"><h2 style="margin:0">${esc(t.nome)} <span class="mu">· ${fmt(t.dia)}</span></h2><div class="acts"><button class="btn" data-all="aprovado">Aprovar pendentes</button><button class="btn2" data-all="reprovado">Reprovar pendentes</button></div></div>
-    ${all.length&&all[0][1].atividade?'<div style="margin:4px 0;white-space:pre-wrap"><b>Atividade:</b> '+esc(all[0][1].atividade)+'</div>':''}<div class="mu">${all.length} pessoas · ${esc(all.length?all[0][1].ini+' às '+all[0][1].fim:'')} · ${pend.length} aguardando</div>`;
+    ${all.length&&all[0][1].atividade?'<div style="margin:4px 0;white-space:pre-wrap"><b>Atividade:</b> '+esc(all[0][1].atividade)+'</div>':''}<div class="mu">${t.sup?'Supervisor: '+esc(t.sup)+' · ':''}${all.length} pessoas · ${esc(all.length?all[0][1].ini+' às '+all[0][1].fim:'')} · ${pend.length} aguardando</div>`;
     rows.forEach(([k,i,s])=>{h+=`<div class="row" data-k="${esc(k)}"><div class="nm">${esc(i.nome)}<span class="mu" style="font-weight:400"> ${sub(i)?'· '+sub(i):''}${i.extra?' · adicional':''}</span>${dm[t.dia+'|'+dupKey(i)]>1?' '+aviso('⚠ duplicado'):''}</div>${badge(s)}<div class="acts"><button class="btn2 ok${s==='aprovado'?' on':''}" data-d="aprovado">Aprovar</button><button class="btn2 no${s==='reprovado'?' on':''}" data-d="reprovado">Reprovar</button></div></div>`});
     h+='</div>';
   });
@@ -246,7 +250,7 @@ async function carregarExcelJS(){
 function dadosAprovados(){
   const porDia={};
   Object.entries(painel.todos||{}).forEach(([id,p])=>{
-    const dia=diaDe(p);if(!dia||(fdia&&dia!==fdia))return;
+    const dia=diaDe(p);if(!dia||(fdia&&dia!==fdia)||!passaP(p))return;
     const pessoas=[];let atividade='';
     Object.entries(p.itens||{}).forEach(([k,i])=>{if(i.vai&&stOf(id,k,i)==='aprovado'){pessoas.push(i);atividade=atividade||i.atividade||''}});
     if(!pessoas.length)return;
@@ -304,6 +308,87 @@ function baixarCsv(){
   const a=$d.createElement('a');a.href=URL.createObjectURL(new Blob([txt],{type:'text/csv;charset=utf-8'}));a.download='horas-extras-aprovadas'+(fdia?'-'+fdia:'')+'.csv';$d.body.appendChild(a);a.click();a.remove();
 }
 
+// ---------- listas de encarregados/supervisores, filtros e importação por tipo ----------
+const SEM='__sem__';
+const horDe=p=>{const f=Object.values(p.itens||{}).find(i=>i.vai);return f&&f.ini?f.ini+'–'+f.fim:''};
+async function loadOpcoes(){try{opcoes=await api('listas')}catch(e){}}
+const meOk=()=>me.trim()&&(!(opcoes.encarregados||[]).length||opcoes.encarregados.includes(me));
+function selNomes(id,nomes,atual,vazio){return `<select id="${id}"><option value="">${vazio}</option>${nomes.map(n=>`<option value="${esc(n)}"${n===atual?' selected':''}>${esc(n)}</option>`).join('')}</select>`}
+function cardEnc(comSup){
+  const E=opcoes.encarregados||[],S=opcoes.supervisores||[];
+  let h='<div class="card"><div class="maps" style="margin:0">';
+  h+=`<label><b>Encarregado responsável</b>${E.length?selNomes('me',E,me,'Selecione o encarregado'):`<input type="text" id="me" value="${esc(me)}" maxlength="80" placeholder="Digite seu nome completo" style="width:100%;margin-top:6px">`}</label>`;
+  if(comSup)h+=`<label><b>Supervisor responsável</b>${S.length?selNomes('sup',S,sup,'Selecione o supervisor'):'<div class="mu" style="margin-top:10px">Lista de supervisores ainda não importada.</div>'}</label>`;
+  h+='</div>';
+  if(!E.length)h+='<p class="mu" style="margin:8px 0 0">A lista de encarregados ainda não foi importada: digite seu nome.</p>';
+  return h+'</div>';
+}
+function passaF(x){const s=x.sup||SEM;return(!fSup.length||fSup.includes(s))&&(!fEnc.length||fEnc.includes(x.nome))&&(!fHor.length||fHor.includes(x.hor))}
+const passaP=p=>passaF({sup:p.sup||'',nome:p.encarregado||'',hor:horDe(p)});
+function podaF(base){
+  fSup=fSup.filter(v=>base.some(x=>(x.sup||SEM)===v));fEnc=fEnc.filter(v=>base.some(x=>x.nome===v));fHor=fHor.filter(v=>base.some(x=>x.hor===v));
+}
+function opcoesF(base,get){const m=new Map();base.forEach(x=>{const v=get(x);m.set(v,(m.get(v)||0)+1)});return[...m.entries()]}
+function grupoF(k,titulo,sel,ops){
+  return `<details data-fd="${k}"${fOpen[k]?' open':''} style="flex:1 1 180px;background:var(--bg);border:1px solid var(--ln);border-radius:6px;padding:6px 10px"><summary style="cursor:pointer;font-weight:600;min-height:30px">${titulo}${sel.length?` <span class="badge pendente">${sel.length}</span>`:''}</summary><div style="max-height:220px;overflow:auto;margin-top:6px">${ops.length?ops.map(([v,c,lab])=>`<label style="display:flex;gap:8px;align-items:center;padding:6px 0"><input type="checkbox" data-fs="${k}" value="${esc(v)}"${sel.includes(v)?' checked':''} style="min-height:auto;width:18px;height:18px"><span>${esc(lab)} <span class="mu">(${c})</span></span></label>`).join(''):'<div class="mu">Sem opções</div>'}</div></details>`;
+}
+function htmlFiltros(base){
+  const ord=(a,b)=>a[2].localeCompare(b[2],'pt');
+  const sups=opcoesF(base,x=>x.sup||SEM).map(([v,c])=>[v,c,v===SEM?'(sem supervisor)':v]).sort(ord);
+  const encs=opcoesF(base,x=>x.nome).map(([v,c])=>[v,c,v]).sort(ord);
+  const hors=opcoesF(base,x=>x.hor).filter(([v])=>v).map(([v,c])=>[v,c,v]).sort(ord);
+  const n=fSup.length+fEnc.length+fHor.length;
+  return `<div class="card"><div class="head" style="margin-bottom:8px"><b>Filtros</b>${n||fdia?`<button class="btn2" id="limpaf">Limpar filtros</button>`:''}</div><div style="display:flex;flex-wrap:wrap;gap:10px">${grupoF('sup','Supervisor',fSup,sups)}${grupoF('enc','Encarregado',fEnc,encs)}${grupoF('hor','Horário',fHor,hors)}</div></div>`;
+}
+function nomesPend(){
+  const m=new Map();pendN.rows.slice(pendN.hdr?1:0).forEach(r=>{const x=String(r[pendN.col]==null?'':r[pendN.col]).trim().replace(/\s+/g,' ');if(x&&!m.has(slug(x)))m.set(slug(x),x)});
+  return[...m.values()];
+}
+function htmlImpNomes(){
+  const nome=impTipo==='enc'?'encarregados':'supervisores',n=impTipo==='enc'?painel.nEnc:painel.nSup;
+  let h=`<div class="card"><h2>Lista de ${nome}</h2><p class="mu">${n?n+' '+nome+' importados.':'Nenhuma lista importada ainda.'} Envie uma planilha (.xlsx de preferência) com os nomes em uma coluna. Importar de novo substitui a lista atual.</p><input type="file" id="filen" accept=".xlsx,.xls,.csv" aria-label="Planilha de ${nome}">`;
+  if(pendN){
+    const opt=pendN.rows[0].map((x,j)=>`<option value="${j}"${j===pendN.col?' selected':''}>${esc('Coluna '+(j+1)+(String(x).trim()?' — '+String(x).trim():''))}</option>`).join('');
+    const ns=nomesPend();
+    h+=`<div class="maps"><label>Coluna dos nomes<select id="coln">${opt}</select></label></div><label style="display:block;margin:6px 0"><input type="checkbox" id="hdrn"${pendN.hdr?' checked':''}> A primeira linha é o cabeçalho</label><p><b>${ns.length} nomes</b> prontos para importar. ${n?'Isso substitui a lista atual ('+n+').':''}</p><p class="mu">${ns.slice(0,6).map(esc).join(' · ')}${ns.length>6?' …':''}</p><div class="acts"><button class="btn" id="impn"${ns.length?'':' disabled'}>Confirmar importação</button><button class="btn2" id="cancelN">Cancelar</button></div>`;
+  }
+  return h+'</div>';
+}
+function renderImp(){
+  const bt=(k,n)=>`<button class="btn2" data-it="${k}" aria-pressed="${impTipo===k}"${impTipo===k?' style="background:var(--ac);color:#1a212b;border-color:var(--ac)"':''}>${n}</button>`;
+  $('#view').innerHTML=`<div class="head"><h2 style="margin:0">Importar listas</h2><button class="btn2" id="impvolta">← Voltar</button></div><div class="acts" style="margin-bottom:12px">${bt('func','Funcionários')}${bt('enc','Encarregados')}${bt('sup','Supervisores')}</div>`+(impTipo==='func'?htmlImpFunc():htmlImpNomes());
+}
+function lerArquivoNomes(f){
+  const r=new FileReader();
+  r.onload=()=>{try{
+    const wb=XLSX.read(r.result,{type:'array'}),ws=wb.Sheets[wb.SheetNames[0]],rg=XLSX.utils.decode_range(ws['!ref']);rg.s.c=0;
+    const rows=XLSX.utils.sheet_to_json(ws,{header:1,defval:'',range:rg}).filter(x=>x.some(c=>String(c).trim()));
+    if(!rows.length)return toast('A planilha está vazia.');
+    let col=rows[0].findIndex(c=>/nome|encarregado|supervisor/i.test(String(c)));const hdr=col>=0;if(col<0)col=0;
+    pendN={rows,col,hdr};renderImp();
+  }catch(x){toast('Não consegui ler esse arquivo.')}};
+  r.readAsArrayBuffer(f);
+}
+async function importarNomes(){
+  const nomes=nomesPend();
+  try{const j=await api('importarnomes',{tipo:impTipo==='enc'?'encarregados':'supervisores',nomes});pendN=null;await loadPainel();await loadOpcoes();renderImp();toast('Lista importada: '+j.n+' nomes')}catch(e){toast(e.message)}
+}
+async function abrir(t){
+  tab=t;render();
+  if(t==='enc'){await loadOpcoes();loadMinha().then(render).catch(()=>{})}
+  else if(t==='mine'){await loadOpcoes();loadMine().then(render).catch(()=>{})}
+  else if(tok){await loadPainel();render()}
+}
+(function(){ // botão Importar no canto superior direito
+  try{
+    const h=$d.querySelector('h1');if(!h)return;
+    const w=$d.createElement('div');w.className='head';w.style.marginBottom='0';
+    h.parentNode.insertBefore(w,h);w.appendChild(h);
+    const b=$d.createElement('button');b.id='btnimp';b.className='btn2';b.textContent='⬆ Importar';b.title='Importar listas';
+    b.addEventListener('click',()=>{if(tab!=='imp')volta=tab;abrir('imp')});w.appendChild(b);
+  }catch(e){}
+})();
+
 const V=$('#view');
 V.addEventListener('click',e=>{
   const b=e.target.closest('button');if(!b)return;
@@ -329,6 +414,11 @@ V.addEventListener('click',e=>{
     ks.length&&decidir(id,ks,b.dataset.all);
   }
   else if(b.id==='imp')importar();
+  else if(b.dataset.it){impTipo=b.dataset.it;pendN=null;pending=null;renderImp()}
+  else if(b.id==='impvolta')abrir(volta||'enc')
+  else if(b.id==='impn')importarNomes();
+  else if(b.id==='cancelN'){pendN=null;renderImp()}
+  else if(b.id==='limpaf'){fSup=[];fEnc=[];fHor=[];fdia='';apagar=false;renderCoord()}
   else if(b.id==='cancel'){pending=null;renderImp()}
   else if(b.id==='apg'){apagar=true;renderCoord()}
   else if(b.id==='apgx'){apagar=false;renderCoord()}
@@ -345,22 +435,27 @@ V.addEventListener('input',e=>{
 });
 V.addEventListener('change',e=>{
   const t=e.target;
-  if(t.dataset.f==='ini'||t.dataset.f==='fim'){const n=normHora(t.value);if(t.value&&!n)toast('Horário inválido. Digite assim: 18:00');t.value=n;q[t.dataset.f]=n;dirty=true}
+  if(t.dataset.fs){const a=t.dataset.fs==='sup'?fSup:t.dataset.fs==='enc'?fEnc:fHor,i=a.indexOf(t.value);if(t.checked&&i<0)a.push(t.value);if(!t.checked&&i>=0)a.splice(i,1);renderCoord()}
+  else if(t.dataset.f==='ini'||t.dataset.f==='fim'){const n=normHora(t.value);if(t.value&&!n)toast('Horário inválido. Digite assim: 18:00');t.value=n;q[t.dataset.f]=n;dirty=true}
+  else if(t.id==='sup'){sup=t.value;try{localStorage.setItem('he_sup',sup)}catch(x){}dirty=true}
+  else if(t.id==='filen'&&t.files[0])lerArquivoNomes(t.files[0]);
+  else if(t.id==='coln'){pendN.col=+t.value;renderImp()}
+  else if(t.id==='hdrn'){pendN.hdr=t.checked;renderImp()}
   else if(t.id==='me'){me=t.value.trim();try{localStorage.setItem('he_nome',me)}catch(x){}dirty=false;lista=[];q={};minha=null;busca='';res=[];Promise.all([loadMinha(),loadMine()]).then(render).catch(er=>{toast(er.message);render()})}
   else if(t.id==='file'&&t.files[0])lerArquivo(t.files[0]);
   else if(t.id==='fdia'){fdia=t.value;apagar=false;t.blur();tab==='res'?renderRes():renderCoord()}
   else if(t.id==='mn'||t.id==='mf'||t.id==='mm'||t.id==='mt'){mapN=+$('#mn').value;mapF=+$('#mf').value;mapM=+$('#mm').value;mapT=+$('#mt').value;renderImp()}
 });
-V.addEventListener('toggle',e=>{const d=e.target;if(d&&d.dataset&&d.dataset.l)abertos[d.dataset.l]=d.open},true);
+V.addEventListener('toggle',e=>{const d=e.target;if(d&&d.dataset){if(d.dataset.l)abertos[d.dataset.l]=d.open;if(d.dataset.fd)fOpen[d.dataset.fd]=d.open}},true);
 V.addEventListener('keydown',e=>{if(e.key==='Enter'&&e.target.id==='pw')entrar()});
 $('#tabs').addEventListener('click',async e=>{
   const b=e.target.closest('[data-tab]');
-  if(b){tab=b.dataset.tab;render();if(tab==='enc')loadMinha().then(render).catch(()=>{});else if(tab==='mine')loadMine().then(render).catch(()=>{});else if(tok){await loadPainel();render()}return}
+  if(b){abrir(b.dataset.tab);return}
   if(e.target.closest('[data-sx]')){tok='';try{sessionStorage.removeItem('he_t')}catch(z){}render()}
 });
 setInterval(async()=>{
   if($d.hidden)return;
   const a=$d.activeElement;if(a&&V.contains(a)&&/INPUT|SELECT|TEXTAREA/.test(a.tagName))return;
-  try{if(tab==='enc'){await loadMinha()}else if(tab==='mine'){await loadMine()}else if(tok){await loadPainel()}else return;render()}catch(e){}
+  try{if(tab==='enc'){await loadOpcoes();await loadMinha()}else if(tab==='mine'){await loadMine()}else if(tok){await loadPainel()}else return;render()}catch(e){}
 },10000);
-(async()=>{render();try{await loadMinha()}catch(e){toast(e.message)}render();if(tok){await loadPainel();render()}})();
+(async()=>{render();await loadOpcoes();try{await loadMinha()}catch(e){toast(e.message)}render();if(tok){await loadPainel();render()}})();
