@@ -41,11 +41,15 @@ async function entrar(){
 }
 async function loadPainel(){try{painel=await api('painel')}catch(e){if(tok)toast(e.message)}}
 
+let minhaSeq=0;
 async function loadMinha(){
+  const seq=++minhaSeq, enc=me, dia=q.dia||'';
   if(!me.trim()){minha=null;return}
-  minha=(await api('minha',{enc:me})).lista;
+  const result=(await api('minha',{enc,dia})).lista;
+  if(seq!==minhaSeq||me!==enc||(q.dia||'')!==dia)return;
+  minha=result;
   if(!dirty){
-    lista=[];q={};
+    lista=[];q={dia};
     if(minha&&minha.sup){sup=minha.sup;try{localStorage.setItem('he_sup',sup)}catch(e){}}
     if(minha){
       Object.entries(minha.itens||{}).forEach(([k,i])=>lista.push({pid:k,nome:i.nome,funcao:i.funcao||'',matricula:i.matricula||'',tipo:i.tipo||'',extra:!!i.extra}));
@@ -59,7 +63,7 @@ function renderEnc(){
     h+=`<div class="card" id="enc-form"><h2>Hora extra de ${esc(me.trim())} <span class="mu">(${lista.length})</span></h2>
     <div class="bulk when"><b>Dia e horário da hora extra:</b><input type="date" data-f="dia" value="${esc(q.dia||'')}" aria-label="Dia"><input type="text" inputmode="numeric" maxlength="5" placeholder="18:00" autocomplete="off" data-f="ini" value="${esc(q.ini||'')}" aria-label="Hora de início" style="width:90px;text-align:center"><span>até</span><input type="text" inputmode="numeric" maxlength="5" placeholder="18:00" autocomplete="off" data-f="fim" value="${esc(q.fim||'')}" aria-label="Hora de fim" style="width:90px;text-align:center"><label style="flex:1 1 100%"><b>Atividade que será feita:</b><textarea data-f="atividade" rows="3" style="width:100%;margin-top:6px;font:inherit;color:var(--ink);background:var(--bg);border:1px solid var(--ln);border-radius:6px;padding:8px 10px;resize:vertical">${esc(q.atividade||'')}</textarea></label></div>
     <div class="bulk" style="margin:10px 0"><label><b>Buscar pessoa pelo nome ou matrícula</b><input type="search" id="bq" value="${esc(busca)}" placeholder="Digite parte do nome" autocomplete="off" style="width:100%;margin-top:6px"></label><div id="bres"></div></div>`;
-    lista.forEach((x,ix)=>{const it=minha&&minha.itens&&minha.itens[x.pid];h+=`<div class="row"><div class="nm">${esc(x.nome)}<div class="when2">${sub(x)}${x.extra?' · adicional':''}</div></div>${it?badge(it.status):''}<button class="btn2" data-rm="${ix}">Remover</button></div>`});
+    lista.forEach((x,ix)=>{const it=minha&&diaDe(minha)===q.dia&&minha.itens&&minha.itens[x.pid];h+=`<div class="row"><div class="nm">${esc(x.nome)}<div class="when2">${sub(x)}${x.extra?' · adicional':''}</div></div>${it?badge(it.status):''}<button class="btn2" data-rm="${ix}">Remover</button></div>`});
     if(!lista.length)h+='<p class="mu">Ninguém na lista ainda. Use a busca acima para adicionar.</p>';
     h+=`<div class="bulk when" style="margin-top:10px"><b>Pessoa que não está na lista do efetivo (vale só para esta lista):</b><input type="text" id="xn" placeholder="Nome" maxlength="120" aria-label="Nome da pessoa" style="flex:1 1 200px"><input type="text" id="xf" placeholder="Função" maxlength="80" aria-label="Função" style="flex:1 1 140px"><input type="text" id="xm" placeholder="Matrícula" maxlength="30" aria-label="Matrícula" style="flex:1 1 110px"><select id="xt" aria-label="Tipo de mão de obra" style="width:auto;margin:0"><option value="">Tipo</option><option>MOD</option><option>MOI</option></select><button class="btn2" id="xadd">Adicionar</button></div>
     <div class="head" style="margin-top:12px"><span class="mu">${minha?'Última lista (para '+fmt(q.dia||diaDe(minha))+') enviada em '+new Date(minha.enviadoEm).toLocaleString('pt-BR',{dateStyle:'short',timeStyle:'short'}):'Ainda não enviada'}</span><button class="btn" id="send">Enviar para aprovação</button></div></div>`;
@@ -430,12 +434,18 @@ V.addEventListener('input',e=>{
   if(t.id==='bq'){busca=t.value;clearTimeout(bt);bt=setTimeout(buscaAgora,250);return}
   const f=t.dataset.f;if(!f)return;
   if(f==='ini'||f==='fim'){const d=t.value.replace(/\D/g,'').slice(0,4);t.value=d.length===4?d.slice(0,2)+':'+d.slice(2):d}
+  if(f==='dia')return;
   q[f]=t.value;dirty=true;
-  if(f==='dia'&&busca.trim().length>=2)buscaAgora();
 });
 V.addEventListener('change',e=>{
   const t=e.target;
-  if(t.dataset.fs){const a=t.dataset.fs==='sup'?fSup:t.dataset.fs==='enc'?fEnc:fHor,i=a.indexOf(t.value);if(t.checked&&i<0)a.push(t.value);if(!t.checked&&i>=0)a.splice(i,1);renderCoord()}
+  if(t.dataset.f==='dia'){
+    const dia=t.value;if(dia===(q.dia||''))return;
+    ++minhaSeq;clearTimeout(bt);minha=null;lista=[];q={dia};dirty=false;busca='';res=[];
+    renderEnc();
+    if(dia)loadMinha().then(()=>{if(tab==='enc'&&q.dia===dia&&!dirty)renderEnc()}).catch(e=>toast(e.message));
+  }
+  else if(t.dataset.fs){const a=t.dataset.fs==='sup'?fSup:t.dataset.fs==='enc'?fEnc:fHor,i=a.indexOf(t.value);if(t.checked&&i<0)a.push(t.value);if(!t.checked&&i>=0)a.splice(i,1);renderCoord()}
   else if(t.dataset.f==='ini'||t.dataset.f==='fim'){const n=normHora(t.value);if(t.value&&!n)toast('Horário inválido. Digite assim: 18:00');t.value=n;q[t.dataset.f]=n;dirty=true}
   else if(t.id==='sup'){sup=t.value;try{localStorage.setItem('he_sup',sup)}catch(x){}dirty=true}
   else if(t.id==='filen'&&t.files[0])lerArquivoNomes(t.files[0]);
