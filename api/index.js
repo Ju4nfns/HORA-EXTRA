@@ -101,7 +101,7 @@ module.exports = async (req, res) => {
         let l = null;
         Object.entries(ps).forEach(([id, p]) => {
           if (!p || p.ek !== ek) return;
-          const d = diaDe(p); if (d && d < hj) return;
+          const d = diaDe(p); if (b.dia ? d !== b.dia : (d && d < hj)) return;
           if (!l || (p.enviadoEm || 0) > (l.enviadoEm || 0)) l = { ...p, id };
         });
         if (l) { const dec = (ds[l.id] || {}).itens || {}; Object.entries(l.itens || {}).forEach(([k, i]) => { if (i.vai) { const x = dec[k]; i.status = x && x.sig === sig(i) ? x.status : 'pendente'; } }); }
