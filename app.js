@@ -2,6 +2,7 @@ const $=s=>$d.querySelector(s),$d=document;
 const esc=s=>String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const slug=s=>String(s).normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/^-+|-+$/g,'')||'x';
 const fmt=d=>d?d.split('-').reverse().join('/'):'—';
+const fmtEnvio=v=>v&&Number.isFinite(new Date(v).getTime())?new Date(v).toLocaleString('pt-BR',{timeZone:'America/Sao_Paulo',dateStyle:'short',timeStyle:'short'}):'Não registrado';
 const sig=i=>[i.dia,i.ini,i.fim].concat(i.atividade?[i.atividade]:[]).join('|');
 const diaDe=p=>p.dia||((Object.values(p.itens||{}).find(i=>i.vai)||{}).dia)||'';
 // Identidade da pessoa: matrícula (se houver) ou nome. Usada para achar duplicidades.
@@ -66,7 +67,7 @@ function renderEnc(){
     lista.forEach((x,ix)=>{const it=minha&&diaDe(minha)===q.dia&&minha.itens&&minha.itens[x.pid];h+=`<div class="row"><div class="nm">${esc(x.nome)}<div class="when2">${sub(x)}${x.extra?' · adicional':''}</div></div>${it?badge(it.status):''}<button class="btn2" data-rm="${ix}">Remover</button></div>`});
     if(!lista.length)h+='<p class="mu">Ninguém na lista ainda. Use a busca acima para adicionar.</p>';
     h+=`<div class="bulk when" style="margin-top:10px"><b>Pessoa que não está na lista do efetivo (vale só para esta lista):</b><input type="text" id="xn" placeholder="Nome" maxlength="120" aria-label="Nome da pessoa" style="flex:1 1 200px"><input type="text" id="xf" placeholder="Função" maxlength="80" aria-label="Função" style="flex:1 1 140px"><input type="text" id="xm" placeholder="Matrícula" maxlength="30" aria-label="Matrícula" style="flex:1 1 110px"><select id="xt" aria-label="Tipo de mão de obra" style="width:auto;margin:0"><option value="">Tipo</option><option>MOD</option><option>MOI</option></select><button class="btn2" id="xadd">Adicionar</button></div>
-    <div class="head" style="margin-top:12px"><span class="mu">${minha?'Última lista (para '+fmt(q.dia||diaDe(minha))+') enviada em '+new Date(minha.enviadoEm).toLocaleString('pt-BR',{dateStyle:'short',timeStyle:'short'}):'Ainda não enviada'}</span><button class="btn" id="send">Enviar para aprovação</button></div></div>`;
+    <div class="head" style="margin-top:12px"><span class="mu">${minha?'Última lista (para '+fmt(q.dia||diaDe(minha))+') enviada em '+fmtEnvio(minha.enviadoEm):'Ainda não enviada'}</span><button class="btn" id="send">Enviar para aprovação</button></div></div>`;
   }
   $('#view').innerHTML=h;renderBusca();
 }
@@ -107,6 +108,7 @@ function renderMine(){
     const r=resumoLista(l);
     h+=`<div class="card"><div class="head"><h2 style="margin:0">Equipe de ${esc(l.encarregado||me)} <span class="mu">· ${fmt(l.dia)}</span></h2><span class="badge ${r.st}">${r.rot}</span></div>
     <div class="when2" style="margin-bottom:4px">${l.sup?'Supervisor: '+esc(l.sup)+' · ':''}${esc(l.ini)} às ${esc(l.fim)} · ${r.n} pessoas</div>
+    <div class="when2"><b>Solicitação enviada em:</b> ${esc(fmtEnvio(l.enviadoEm))}</div>
     ${l.atividade?'<div style="margin:4px 0;white-space:pre-wrap"><b>Atividade:</b> '+esc(l.atividade)+'</div>':''}
     <div class="mu">${r.c.aprovado} aprovada(s) · ${r.c.reprovado} reprovada(s) · ${r.c.pendente} aguardando</div>
     <details data-l="${esc(l.id)}"${abertos[l.id]?' open':''} style="margin-top:6px"><summary class="mu" style="cursor:pointer">Ver pessoas</summary>${l.itens.map(i=>`<div class="row"><div class="nm">${esc(i.nome)}<div class="when2">${sub(i)}${i.extra?' · adicional':''}</div></div>${badge(i.status)}</div>`).join('')}</details></div>`;
@@ -193,7 +195,7 @@ function renderCoord(){
     if(filtro==='pend'&&!pend.length)return;
     shown++;
     h+=`<div class="card" data-t="${esc(t.k)}"><div class="head"><h2 style="margin:0">${esc(t.nome)} <span class="mu">· ${fmt(t.dia)}</span></h2><div class="acts"><button class="btn" data-all="aprovado">Aprovar pendentes</button><button class="btn2" data-all="reprovado">Reprovar pendentes</button></div></div>
-    ${all.length&&all[0][1].atividade?'<div style="margin:4px 0;white-space:pre-wrap"><b>Atividade:</b> '+esc(all[0][1].atividade)+'</div>':''}<div class="mu">${t.sup?'Supervisor: '+esc(t.sup)+' · ':''}${all.length} pessoas · ${esc(all.length?all[0][1].ini+' às '+all[0][1].fim:'')} · ${pend.length} aguardando</div>`;
+    ${all.length&&all[0][1].atividade?'<div style="margin:4px 0;white-space:pre-wrap"><b>Atividade:</b> '+esc(all[0][1].atividade)+'</div>':''}<div class="mu">${t.sup?'Supervisor: '+esc(t.sup)+' · ':''}${all.length} pessoas · ${esc(all.length?all[0][1].ini+' às '+all[0][1].fim:'')} · ${pend.length} aguardando</div><div class="when2"><b>Solicitação enviada em:</b> ${esc(fmtEnvio(p.enviadoEm))}</div>`;
     rows.forEach(([k,i,s])=>{h+=`<div class="row" data-k="${esc(k)}"><div class="nm">${esc(i.nome)}<span class="mu" style="font-weight:400"> ${sub(i)?'· '+sub(i):''}${i.extra?' · adicional':''}</span>${dm[t.dia+'|'+dupKey(i)]>1?' '+aviso('⚠ duplicado'):''}</div>${badge(s)}<div class="acts"><button class="btn2 ok${s==='aprovado'?' on':''}" data-d="aprovado">Aprovar</button><button class="btn2 no${s==='reprovado'?' on':''}" data-d="reprovado">Reprovar</button></div></div>`});
     h+='</div>';
   });
