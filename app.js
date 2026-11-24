@@ -3,7 +3,7 @@ const esc=s=>String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;'
 const slug=s=>String(s).normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/^-+|-+$/g,'')||'x';
 const fmt=d=>d?d.split('-').reverse().join('/'):'—';
 const fmtEnvio=v=>v&&Number.isFinite(new Date(v).getTime())?new Date(v).toLocaleString('pt-BR',{timeZone:'America/Sao_Paulo',dateStyle:'short',timeStyle:'short'}):'Não registrado';
-const sig=i=>[i.dia,i.ini,i.fim].concat(i.atividade?[i.atividade]:[]).join('|');
+const sig=i=>[i.dia,i.ini,i.fim].concat(i.atividade?[i.atividade]:[]).concat(i.turno?[i.turno]:[]).join('|');
 const diaDe=p=>p.dia||((Object.values(p.itens||{}).find(i=>i.vai)||{}).dia)||'';
 // Identidade da pessoa: matrícula (se houver) ou nome. Usada para achar duplicidades.
 const dupKey=i=>i.matricula?'m'+slug(i.matricula):'n'+slug(i.nome);
@@ -11,7 +11,7 @@ const minu=h=>{const [a,b]=String(h||'0:0').split(':');return(+a)*60+(+b)};
 const faixa=i=>{const a=minu(i.ini);let f=minu(i.fim);if(f<=a)f+=1440;return[a,f]};
 let tab='enc',tok='',painel={todos:{},decisoes:{},pessoas:0};
 let me='',minha=null,mine=[],abertos={},lista=[],q={},dirty=false,res=[],busca='',bt;
-let filtro='pend',fdia='',fSup=[],fEnc=[],fHor=[],fOpen={},sup='',opcoes={encarregados:[],supervisores:[]},impTipo='func',pendN=null,volta='enc',apagar=false,pending=null,mapN=0,mapF=-1,mapM=-1,mapT=-1;
+let filtro='pend',fdia='',fSup=[],fEnc=[],fHor=[],fTurno=[],fOpen={},sup='',opcoes={encarregados:[],supervisores:[]},impTipo='func',pendN=null,volta='enc',apagar=false,pending=null,mapN=0,mapF=-1,mapM=-1,mapT=-1;
 try{me=localStorage.getItem('he_nome')||'';sup=localStorage.getItem('he_sup')||'';tok=sessionStorage.getItem('he_t')||''}catch(e){}
 let tt;function toast(m){const t=$('#toast');t.textContent=m;t.style.display='block';clearTimeout(tt);tt=setTimeout(()=>t.style.display='none',7000)}
 async function api(a,d={}){
@@ -54,7 +54,7 @@ async function loadMinha(){
     if(minha&&minha.sup){sup=minha.sup;try{localStorage.setItem('he_sup',sup)}catch(e){}}
     if(minha){
       Object.entries(minha.itens||{}).forEach(([k,i])=>lista.push({pid:k,nome:i.nome,funcao:i.funcao||'',matricula:i.matricula||'',tipo:i.tipo||'',extra:!!i.extra}));
-      const f=Object.values(minha.itens||{})[0];if(f)q={dia:f.dia,ini:f.ini,fim:f.fim,atividade:f.atividade||''};
+      const f=Object.values(minha.itens||{})[0];if(f)q={dia:f.dia,ini:f.ini,fim:f.fim,atividade:f.atividade||'',turno:minha.turno||''};
     }
   }
 }
@@ -62,7 +62,7 @@ function renderEnc(){
   let h=cardEnc(true);
   if(meOk()){
     h+=`<div class="card" id="enc-form"><h2>Hora extra de ${esc(me.trim())} <span class="mu">(${lista.length})</span></h2>
-    <div class="bulk when"><b>Dia e horário da hora extra:</b><input type="date" data-f="dia" value="${esc(q.dia||'')}" aria-label="Dia"><input type="text" inputmode="numeric" maxlength="5" placeholder="18:00" autocomplete="off" data-f="ini" value="${esc(q.ini||'')}" aria-label="Hora de início" style="width:90px;text-align:center"><span>até</span><input type="text" inputmode="numeric" maxlength="5" placeholder="18:00" autocomplete="off" data-f="fim" value="${esc(q.fim||'')}" aria-label="Hora de fim" style="width:90px;text-align:center"><label style="flex:1 1 100%"><b>Atividade que será feita:</b><textarea data-f="atividade" rows="3" style="width:100%;margin-top:6px;font:inherit;color:var(--ink);background:var(--bg);border:1px solid var(--ln);border-radius:6px;padding:8px 10px;resize:vertical">${esc(q.atividade||'')}</textarea></label></div>
+    <div class="bulk when"><b>Dia e horário da hora extra:</b><input type="date" data-f="dia" value="${esc(q.dia||'')}" aria-label="Dia"><input type="text" inputmode="numeric" maxlength="5" placeholder="18:00" autocomplete="off" data-f="ini" value="${esc(q.ini||'')}" aria-label="Hora de início" style="width:90px;text-align:center"><span>até</span><input type="text" inputmode="numeric" maxlength="5" placeholder="18:00" autocomplete="off" data-f="fim" value="${esc(q.fim||'')}" aria-label="Hora de fim" style="width:90px;text-align:center"><label><b>Turno da escala</b><select data-f="turno" required><option value="">Selecione</option>${['Diurno','Noturno'].map(v=>`<option${q.turno===v?' selected':''}>${v}</option>`).join('')}</select></label><label style="flex:1 1 100%"><b>Atividade que será feita:</b><textarea data-f="atividade" rows="3" style="width:100%;margin-top:6px;font:inherit;color:var(--ink);background:var(--bg);border:1px solid var(--ln);border-radius:6px;padding:8px 10px;resize:vertical">${esc(q.atividade||'')}</textarea></label></div>
     <div class="bulk" style="margin:10px 0"><label><b>Buscar pessoa pelo nome ou matrícula</b><input type="search" id="bq" value="${esc(busca)}" placeholder="Digite parte do nome" autocomplete="off" style="width:100%;margin-top:6px"></label><div id="bres"></div></div>`;
     lista.forEach((x,ix)=>{const it=minha&&diaDe(minha)===q.dia&&minha.itens&&minha.itens[x.pid];h+=`<div class="row"><div class="nm">${esc(x.nome)}<div class="when2">${sub(x)}${x.extra?' · adicional':''}</div></div>${it?badge(it.status):''}<button class="btn2" data-rm="${ix}">Remover</button></div>`});
     if(!lista.length)h+='<p class="mu">Ninguém na lista ainda. Use a busca acima para adicionar.</p>';
@@ -107,7 +107,7 @@ function renderMine(){
   mine.forEach(l=>{
     const r=resumoLista(l);
     h+=`<div class="card"><div class="head"><h2 style="margin:0">Equipe de ${esc(l.encarregado||me)} <span class="mu">· ${fmt(l.dia)}</span></h2><span class="badge ${r.st}">${r.rot}</span></div>
-    <div class="when2" style="margin-bottom:4px">${l.sup?'Supervisor: '+esc(l.sup)+' · ':''}${esc(l.ini)} às ${esc(l.fim)} · ${r.n} pessoas</div>
+    <div class="when2" style="margin-bottom:4px">${l.sup?'Supervisor: '+esc(l.sup)+' · ':''}${esc(l.turno||'Não informado')} · ${esc(l.ini)} às ${esc(l.fim)} · ${r.n} pessoas</div>
     <div class="when2"><b>Solicitação enviada em:</b> ${esc(fmtEnvio(l.enviadoEm))}</div>
     ${l.atividade?'<div style="margin:4px 0;white-space:pre-wrap"><b>Atividade:</b> '+esc(l.atividade)+'</div>':''}
     <div class="mu">${r.c.aprovado} aprovada(s) · ${r.c.reprovado} reprovada(s) · ${r.c.pendente} aguardando</div>
@@ -120,11 +120,12 @@ async function enviar(){
   const xn=$('#xn');if(xn&&xn.value.trim())return toast('Clique em "Adicionar" para incluir a pessoa digitada, ou apague o nome.');
   if(!me.trim()||(opcoes.encarregados.length&&!opcoes.encarregados.includes(me)))return toast('Selecione o encarregado responsável');
   if(opcoes.supervisores.length&&!sup)return toast('Selecione o supervisor responsável');
+  if(!['Diurno','Noturno'].includes(q.turno))return toast('Selecione o turno da escala');
   if(!lista.length)return toast('Adicione pelo menos uma pessoa');
   if(!q.dia||!q.ini||!q.fim)return toast('Preencha o dia e o horário (exemplo: 18:00 até 22:00)');
   if(!(q.atividade||'').trim())return toast('Informe a atividade que será feita');
   try{
-    const j=await api('enviar',{enc:me,sup,dia:q.dia,ini:q.ini,fim:q.fim,atividade:q.atividade,pessoas:lista.filter(x=>!x.extra).map(x=>x.pid),extras:lista.filter(x=>x.extra)});
+    const j=await api('enviar',{enc:me,sup,dia:q.dia,ini:q.ini,fim:q.fim,atividade:q.atividade,turno:q.turno,pessoas:lista.filter(x=>!x.extra).map(x=>x.pid),extras:lista.filter(x=>x.extra)});
     dirty=false;const d=j.duplicados||[];
     toast(d.length?'Lista enviada. Atenção: '+d.slice(0,3).map(x=>x.nome+' já está na lista de '+x.enc).join('; ')+(d.length>3?'…':''):'Lista enviada para aprovação');
     await loadMinha();render();
@@ -181,7 +182,7 @@ function seletorDatas(){
 }
 function renderCoord(){
   const todos=painel.todos||{},dm=dupMapa();
-  const BASE=Object.entries(todos).map(([id,p])=>({k:id,p,dia:diaDe(p),nome:p.encarregado||id,sup:p.sup||'',hor:horDe(p)})).filter(x=>!fdia||x.dia===fdia).sort((a,b)=>(b.dia||'').localeCompare(a.dia||'')||a.nome.localeCompare(b.nome,'pt'));
+  const BASE=Object.entries(todos).map(([id,p])=>({k:id,p,dia:diaDe(p),nome:p.encarregado||id,sup:p.sup||'',hor:horDe(p),turno:p.turno||'Não informado'})).filter(x=>!fdia||x.dia===fdia).sort((a,b)=>(b.dia||'').localeCompare(a.dia||'')||a.nome.localeCompare(b.nome,'pt'));
   podaF(BASE);const L=BASE.filter(passaF);
   let h=`<div class="head"><h2 style="margin:0">Listas para aprovar</h2><div class="acts"><button class="btn2 ${filtro==='pend'?'on':''}" data-fil="pend" aria-pressed="${filtro==='pend'}">Pendentes</button><button class="btn2 ${filtro==='todas'?'on':''}" data-fil="todas" aria-pressed="${filtro==='todas'}">Todas</button><button class="btn2" id="csv">Baixar aprovados (Excel)</button></div></div>`;
   h+=`<div class="head">${seletorDatas()}${Object.keys(todos).length?`<button class="btn2" id="apg">Apagar ${fdia?'listas desta data':'todas as listas'}</button>`:''}</div>`;
@@ -195,7 +196,7 @@ function renderCoord(){
     if(filtro==='pend'&&!pend.length)return;
     shown++;
     h+=`<div class="card" data-t="${esc(t.k)}"><div class="head"><h2 style="margin:0">${esc(t.nome)} <span class="mu">· ${fmt(t.dia)}</span></h2><div class="acts"><button class="btn" data-all="aprovado">Aprovar pendentes</button><button class="btn2" data-all="reprovado">Reprovar pendentes</button></div></div>
-    ${all.length&&all[0][1].atividade?'<div style="margin:4px 0;white-space:pre-wrap"><b>Atividade:</b> '+esc(all[0][1].atividade)+'</div>':''}<div class="mu">${t.sup?'Supervisor: '+esc(t.sup)+' · ':''}${all.length} pessoas · ${esc(all.length?all[0][1].ini+' às '+all[0][1].fim:'')} · ${pend.length} aguardando</div><div class="when2"><b>Solicitação enviada em:</b> ${esc(fmtEnvio(p.enviadoEm))}</div>`;
+    ${all.length&&all[0][1].atividade?'<div style="margin:4px 0;white-space:pre-wrap"><b>Atividade:</b> '+esc(all[0][1].atividade)+'</div>':''}<div class="mu">${t.sup?'Supervisor: '+esc(t.sup)+' · ':''}${esc(p.turno||'Não informado')} · ${all.length} pessoas · ${esc(all.length?all[0][1].ini+' às '+all[0][1].fim:'')} · ${pend.length} aguardando</div><div class="when2"><b>Solicitação enviada em:</b> ${esc(fmtEnvio(p.enviadoEm))}</div>`;
     rows.forEach(([k,i,s])=>{h+=`<div class="row" data-k="${esc(k)}"><div class="nm">${esc(i.nome)}<span class="mu" style="font-weight:400"> ${sub(i)?'· '+sub(i):''}${i.extra?' · adicional':''}</span>${dm[t.dia+'|'+dupKey(i)]>1?' '+aviso('⚠ duplicado'):''}</div>${badge(s)}<div class="acts"><button class="btn2 ok${s==='aprovado'?' on':''}" data-d="aprovado">Aprovar</button><button class="btn2 no${s==='reprovado'?' on':''}" data-d="reprovado">Reprovar</button></div></div>`});
     h+='</div>';
   });
@@ -329,8 +330,8 @@ function cardEnc(comSup){
   if(!E.length)h+='<p class="mu" style="margin:8px 0 0">A lista de encarregados ainda não foi importada: digite seu nome.</p>';
   return h+'</div>';
 }
-function passaF(x){const s=x.sup||SEM;return(!fSup.length||fSup.includes(s))&&(!fEnc.length||fEnc.includes(x.nome))&&(!fHor.length||fHor.includes(x.hor))}
-const passaP=p=>passaF({sup:p.sup||'',nome:p.encarregado||'',hor:horDe(p)});
+function passaF(x){const s=x.sup||SEM;return(!fSup.length||fSup.includes(s))&&(!fEnc.length||fEnc.includes(x.nome))&&(!fHor.length||fHor.includes(x.hor))&&(!fTurno.length||fTurno.includes(x.turno))}
+const passaP=p=>passaF({sup:p.sup||'',nome:p.encarregado||'',hor:horDe(p),turno:p.turno||'Não informado'});
 function podaF(base){
   fSup=fSup.filter(v=>base.some(x=>(x.sup||SEM)===v));fEnc=fEnc.filter(v=>base.some(x=>x.nome===v));fHor=fHor.filter(v=>base.some(x=>x.hor===v));
 }
@@ -343,8 +344,9 @@ function htmlFiltros(base){
   const sups=opcoesF(base,x=>x.sup||SEM).map(([v,c])=>[v,c,v===SEM?'(sem supervisor)':v]).sort(ord);
   const encs=opcoesF(base,x=>x.nome).map(([v,c])=>[v,c,v]).sort(ord);
   const hors=opcoesF(base,x=>x.hor).filter(([v])=>v).map(([v,c])=>[v,c,v]).sort(ord);
-  const n=fSup.length+fEnc.length+fHor.length;
-  return `<div class="card"><div class="head" style="margin-bottom:8px"><b>Filtros</b>${n||fdia?`<button class="btn2" id="limpaf">Limpar filtros</button>`:''}</div><div style="display:flex;flex-wrap:wrap;gap:10px">${grupoF('sup','Supervisor',fSup,sups)}${grupoF('enc','Encarregado',fEnc,encs)}${grupoF('hor','Horário',fHor,hors)}</div></div>`;
+  const turnos=['Diurno','Noturno','Não informado'].map(v=>[v,base.filter(x=>x.turno===v).length,v]);
+  const n=fSup.length+fEnc.length+fHor.length+fTurno.length;
+  return `<div class="card"><div class="head" style="margin-bottom:8px"><b>Filtros</b>${n||fdia?`<button class="btn2" id="limpaf">Limpar filtros</button>`:''}</div><div style="display:flex;flex-wrap:wrap;gap:10px">${grupoF('sup','Supervisor',fSup,sups)}${grupoF('enc','Encarregado',fEnc,encs)}${grupoF('hor','Horário',fHor,hors)}${grupoF('turno','Turno',fTurno,turnos)}</div></div>`;
 }
 function nomesPend(){
   const m=new Map();pendN.rows.slice(pendN.hdr?1:0).forEach(r=>{const x=String(r[pendN.col]==null?'':r[pendN.col]).trim().replace(/\s+/g,' ');if(x&&!m.has(slug(x)))m.set(slug(x),x)});
@@ -424,7 +426,7 @@ V.addEventListener('click',e=>{
   else if(b.id==='impvolta')abrir(volta||'enc')
   else if(b.id==='impn')importarNomes();
   else if(b.id==='cancelN'){pendN=null;renderImp()}
-  else if(b.id==='limpaf'){fSup=[];fEnc=[];fHor=[];fdia='';apagar=false;renderCoord()}
+  else if(b.id==='limpaf'){fSup=[];fEnc=[];fHor=[];fTurno=[];fdia='';apagar=false;renderCoord()}
   else if(b.id==='cancel'){pending=null;renderImp()}
   else if(b.id==='apg'){apagar=true;renderCoord()}
   else if(b.id==='apgx'){apagar=false;renderCoord()}
@@ -447,7 +449,8 @@ V.addEventListener('change',e=>{
     renderEnc();
     if(dia)loadMinha().then(()=>{if(tab==='enc'&&q.dia===dia&&!dirty)renderEnc()}).catch(e=>toast(e.message));
   }
-  else if(t.dataset.fs){const a=t.dataset.fs==='sup'?fSup:t.dataset.fs==='enc'?fEnc:fHor,i=a.indexOf(t.value);if(t.checked&&i<0)a.push(t.value);if(!t.checked&&i>=0)a.splice(i,1);renderCoord()}
+  else if(t.dataset.f==='turno'){q.turno=t.value;dirty=true}
+  else if(t.dataset.fs){const a=t.dataset.fs==='sup'?fSup:t.dataset.fs==='enc'?fEnc:t.dataset.fs==='turno'?fTurno:fHor,i=a.indexOf(t.value);if(t.checked&&i<0)a.push(t.value);if(!t.checked&&i>=0)a.splice(i,1);renderCoord()}
   else if(t.dataset.f==='ini'||t.dataset.f==='fim'){const n=normHora(t.value);if(t.value&&!n)toast('Horário inválido. Digite assim: 18:00');t.value=n;q[t.dataset.f]=n;dirty=true}
   else if(t.id==='sup'){sup=t.value;try{localStorage.setItem('he_sup',sup)}catch(x){}dirty=true}
   else if(t.id==='filen'&&t.files[0])lerArquivoNomes(t.files[0]);
