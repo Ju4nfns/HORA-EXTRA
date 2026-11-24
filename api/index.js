@@ -21,7 +21,7 @@ const slug = s => norm(s).replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '') ||
 const limpa = (v, n) => String(v == null ? '' : v).trim().replace(/\s+/g, ' ').slice(0, n);
 const tipoOk = t => { t = String(t || '').toUpperCase(); return t.includes('MOI') ? 'MOI' : t.includes('MOD') ? 'MOD' : ''; };
 const hoje = () => new Intl.DateTimeFormat('en-CA', { timeZone: TZ }).format(new Date());
-const sig = i => [i.dia, i.ini, i.fim].concat(i.atividade ? [i.atividade] : []).join('|');
+const sig = i => [i.dia, i.ini, i.fim].concat(i.atividade ? [i.atividade] : []).concat(i.turno ? [i.turno] : []).join('|');
 const diaDe = p => p.dia || ((Object.values(p.itens || {}).find(i => i.vai) || {}).dia) || '';
 // Identidade da pessoa: matrícula (se houver) ou nome. Usada para achar duplicidades.
 const dupKey = i => i.matricula ? 'm' + slug(i.matricula) : 'n' + slug(i.nome);
@@ -114,6 +114,7 @@ module.exports = async (req, res) => {
         if (!pids.length && !ex.length) return send(400, { erro: 'Adicione pelo menos uma pessoa.' });
         if (!/^\d{4}-\d{2}-\d{2}$/.test(b.dia || '') || !/^\d{2}:\d{2}$/.test(b.ini || '') || !/^\d{2}:\d{2}$/.test(b.fim || '')) return send(400, { erro: 'Preencha o dia e o horário da hora extra' });
         const at = String(b.atividade || '').replace(/\r/g, '').split('\n').map(l => l.trim().replace(/[ \t]+/g, ' ')).join('\n').replace(/\n{3,}/g, '\n\n').trim().slice(0, 2000);
+        if (!['Diurno','Noturno'].includes(b.turno)) return send(400, { erro: 'Selecione o turno da escala.' });
         if (!at) return send(400, { erro: 'Informe a atividade que será feita' });
         // Encarregado e supervisor: obrigatórios quando as listas foram importadas (usa o nome oficial da lista).
         const [ne, ns] = await Promise.all([nomesDe('he:encarregados'), nomesDe('he:supervisores')]);
@@ -133,9 +134,9 @@ module.exports = async (req, res) => {
           if (itens['x-' + slug(nome)] || itens[dupKey(it)]) return send(400, { erro: nome + ' foi adicionado duas vezes.' });
           itens['x-' + slug(nome)] = it;
         }
-        Object.values(itens).forEach(i => Object.assign(i, { vai: true, dia: b.dia, ini: b.ini, fim: b.fim, atividade: at }));
+        Object.values(itens).forEach(i => Object.assign(i, { vai: true, dia: b.dia, ini: b.ini, fim: b.fim, atividade: at, turno: b.turno }));
         const id = idLista(encF, b.dia), ps = await hash('he:pedidos'), outros = outrosDoDia(ps, b.dia, id);
-        const doc = JSON.stringify({ ek: slug(encF), encarregado: encF, sup: supF, dia: b.dia, itens, enviadoEm: Date.now() });
+        const doc = JSON.stringify({ ek: slug(encF), encarregado: encF, sup: supF, dia: b.dia, turno: b.turno, itens, enviadoEm: Date.now() });
         if (doc.length > 900000) return send(400, { erro: 'Lista grande demais: reduza o texto da atividade ou o número de pessoas.' });
         await R('HSET', 'he:pedidos', id, doc);
         const duplicados = [];
@@ -154,7 +155,7 @@ module.exports = async (req, res) => {
             return { nome: i.nome, funcao: i.funcao || '', matricula: i.matricula || '', tipo: i.tipo || '', extra: !!i.extra, status: x && x.sig === sig(i) ? x.status : 'pendente' };
           });
           const f = Object.values(p.itens || {}).find(i => i.vai) || {};
-          return { id, encarregado: p.encarregado, sup: p.sup || '', dia: diaDe(p), ini: f.ini || '', fim: f.fim || '', atividade: f.atividade || '', enviadoEm: p.enviadoEm || 0, itens };
+          return { id, encarregado: p.encarregado, sup: p.sup || '', turno: p.turno || '', dia: diaDe(p), ini: f.ini || '', fim: f.fim || '', atividade: f.atividade || '', enviadoEm: p.enviadoEm || 0, itens };
         }).filter(l => l.itens.length).sort((a, c) => (c.dia || '').localeCompare(a.dia || '') || c.enviadoEm - a.enviadoEm);
         return send(200, { listas });
       }
